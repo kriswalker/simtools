@@ -234,10 +234,10 @@ class GadgetSnap(GadgetBox):
     def __init__(self, path, snapshot_filename, snapshot_number, particle_type,
                  load_ids=True, load_coords=True, load_vels=True,
                  load_masses=True, cutout_positions=None, cutout_radii=None,
-                 read_mode=1, npool=None, unit_length_in_cm=None,
-                 unit_mass_in_g=None, unit_velocity_in_cm_per_s=None,
-                 to_physical=False, number_of_particles=None, buffer=0.0,
-                 verbose=True):
+                 use_kdtree=True, read_mode=1, npool=None,
+                 unit_length_in_cm=None, unit_mass_in_g=None,
+                 unit_velocity_in_cm_per_s=None, to_physical=False,
+                 number_of_particles=None, buffer=0.0, verbose=True):
 
         super().__init__(unit_length_in_cm, unit_mass_in_g,
                          unit_velocity_in_cm_per_s)
@@ -248,6 +248,7 @@ class GadgetSnap(GadgetBox):
         self.particle_type = particle_type
         self.cutout_positions = cutout_positions
         self.cutout_radii = cutout_radii
+        self.use_kdtree = use_kdtree
         self.read_mode = read_mode
         self.npool = npool
         self.buffer = buffer
@@ -468,10 +469,16 @@ class GadgetSnap(GadgetBox):
 
                 if cutout_positions is not None:
                     coords = snappt['Coordinates'][()]
-                    kdtree = KDTree(coords,
-                                    boxsize=self.box_size*(1 + self.buffer))
-                    cutout_inds = kdtree.query_ball_point(
-                        cutout_positions, cutout_radii)
+                    if self.use_kdtree:
+                        kdtree = KDTree(coords,
+                                        boxsize=self.box_size*(1 + self.buffer))
+                        cutout_inds = kdtree.query_ball_point(
+                            cutout_positions, cutout_radii)
+                    else:
+                        cutout_inds = []
+                        for pos, rad in zip(cutout_positions, cutout_radii):
+                            r = magnitude(coords - pos)
+                            cutout_inds.append(np.argwhere(r < rad).flatten())
                     region_lens = [len(inds) for inds in cutout_inds]
                     cutout_inds = np.hstack(cutout_inds).astype(int)
                     if len(cutout_inds) == 0:
