@@ -1,102 +1,13 @@
 import numpy as np
-from scipy.integrate import quad
-from scipy.interpolate import interp1d
 from sklearn.neighbors import KernelDensity
 import tabulate
 
 
-def recenter(pos, boxsize):
+def recenter_coordinates(position, boxsize):
     for dim in range(3):
-        pos[np.argwhere((pos[:, dim] > boxsize/2)), dim] -= boxsize
-        pos[np.argwhere((pos[:, dim] < -boxsize/2)), dim] += boxsize
-    return pos
-
-
-def g(c):
-    return 1 / (np.log(1 + c) - c / (1 + c))
-
-
-def nfw_density(params, r):
-    delta_c = params['central_density'].value
-    rs = params['scale_radius'].value
-
-    x = r / rs
-    density = delta_c / (x * (1 + x)**2)
-
-    return density
-
-
-def nfw_mass(params, r):
-    delta_c = params['central_density'].value
-    rs = params['scale_radius'].value
-
-    x = r / rs
-    mass = 4 * np.pi * delta_c * rs**3 * (1 / (1 + x) + np.log(1 + x) - 1)
-
-    return mass
-
-
-def calc_sp_ang_mom(x, v, npart):
-    return np.sum(np.cross(x, v), axis=0) / npart
-
-
-def specific_angular_momentum(nbins, r, rx, v, coords):
-    angmom = []
-    for b in range(nbins):
-        inds_i = np.argwhere((r > rx[b]) & (r < rx[b+1]))
-        inds_i = inds_i[:, 0]
-
-        vi = v[inds_i, :]
-        xi = coords[inds_i, :]
-        angmom.append(calc_sp_ang_mom(xi, vi, len(inds_i)))
-    return np.array(angmom)
-
-
-def calc_delta_c(params, particle_radii, particle_mass, critical_density, Rs,
-                 R_200):
-    v = params['virial_overdensity'].value
-
-    Rvir = 0.8*R_200
-    tol = 1e-2
-    res = 1
-    dr = Rvir/500
-    while res > tol:
-        Rvir += dr
-        Mvir = particle_mass * len(np.argwhere((particle_radii < Rvir))
-                                   .flatten())
-        Vol = 4 * np.pi * Rvir**3 / 3
-        res = abs(1 - (Mvir / Vol) / (v*critical_density))
-        # if res_ > res:
-        #     dr *= -1
-        # res = res_
-    c = Rvir / Rs
-    delta_c = (v / 3) * c**3 * g(c)
-
-    print('delta_c', delta_c)
-
-    return delta_c
-
-
-def approx_concentration(delta_c, v):
-    c = np.linspace(1, 100, 1000)
-    y = c**3 * g(c)
-    f = interp1d(y, c)
-    return f(3 * delta_c / v)
-
-
-def tcirc(r, Vc):
-    return 2 * np.pi * r / Vc
-
-
-def vel_disp_nfw(x, conc, beta):
-    def integrand(s, b, c):
-        return ((s**(2 * b - 3) * np.log(1 + c * s)) / (1 + c * s)**2) -\
-            ((c * s**(2 * b - 2)) / (1 + c * s)**3)
-    dispint = []
-    for ri in x:
-        dispint.append(quad(integrand, ri, np.inf, args=(beta, conc))[0])
-    return np.sqrt(g(conc) * (1 + conc * x)**2 * x**(1 - 2 * beta) *
-                   np.array(dispint))
+        position[np.argwhere((position[:, dim] > boxsize/2)), dim] -= boxsize
+        position[np.argwhere((position[:, dim] < -boxsize/2)), dim] += boxsize
+    return position
 
 
 def hubble_parameter(z, H0, Omega_m, Omega_Lambda, Omega_k):
@@ -105,10 +16,8 @@ def hubble_parameter(z, H0, Omega_m, Omega_Lambda, Omega_k):
                         Omega_Lambda)
 
 
-def to_physical_velocity(velocity, coord, z, H0, **Omega):
-    # TODO: Only Hubble flow to be accounted for with subhalo velocities
-    return velocity * np.sqrt(1 / (1 + z)) + \
-        coord * hubble_parameter(z, H0, **Omega)
+def add_hubble_flow(velocity, position, z, H0, **Omega):
+    return velocity + position * hubble_parameter(z, H0, **Omega)
 
 
 def magnitude(vectors, return_magnitude=True, return_unit_vectors=False):
@@ -121,41 +30,55 @@ def magnitude(vectors, return_magnitude=True, return_unit_vectors=False):
         return vectors / vmags[:, np.newaxis]
 
 
-def radial_velocity(coords, vels):
+def radial_velocity(coords, vels, return_radii=False):
     rads = magnitude(coords)
-    return np.einsum('...i,...i', vels, coords) / rads
+    if return_radii:
+        return np.einsum('...i,...i', vels, coords) / rads, rads
+    else:
+        return np.einsum('...i,...i', vels, coords) / rads
 
 
-def interpolate2D(data, kernel, bandwidth, resolution):
-    """
-    2D interpolation using a kernel density estimator
+def simple_derivative(x, y, window_length=1):
+    winds = np.unique(np.append(np.arange(0, len(y), window_length), len(y)-1))
+    x_ = x[winds]
+    derivative = np.diff(y[winds]) / np.diff(x_)
+    return np.interp(x[:-1], x_[:-1], derivative)
 
-    """
 
-    xdata = data[:, 0]
-    ydata = data[:, 1]
+def kernel_density_estimate(data, kernel, bandwidth, resolution):
 
-    # normalize data to range [0,1]
-    xmin = np.min(xdata)
-    xdata_ = xdata - xmin
-    xmax = np.max(xdata_)
-    data[:, 0] = xdata_ / xmax
+    data_ = np.zeros(np.shape(data))
 
-    ymin = np.min(ydata)
-    ydata_ = ydata - ymin
-    ymax = np.max(ydata_)
-    data[:, 1] = ydata_ / ymax
+    def rescale(x):
+        xmin = np.min(x)
+        x_ = x - xmin
+        xmax = np.max(x_)
+        return x_ / xmax, xmin, xmax
+
+    minmax = []
+    for i, d in enumerate(data.T):
+        q = rescale(d)
+        data_[:, i] = q[0]
+        minmax.append(q[1:])
+    minmax = np.array(minmax)
+    mins, maxs = minmax[:, 0], minmax[:, 1]
 
     # interpolation grid
-    x = np.linspace(0, 1, resolution)
-    y = np.linspace(0, 1, resolution)
-    X, Y = np.meshgrid(x, y)
-    XY = np.stack((X.flatten(), Y.flatten()), axis=-1)
+    nvar = np.shape(data)[1]
+    resolution = [resolution] * nvar if isinstance(resolution, int) else \
+        resolution
+    scaled_axes = [np.linspace(0, 1, res) for res in resolution]
+    grid = np.meshgrid(*scaled_axes, indexing='ij')
+    coords = np.vstack(list(map(np.ravel, grid))).T
 
-    kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(data)
-    log_density = kde.score_samples(XY).reshape(resolution, resolution)
+    kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(data_)
+    log_density = kde.score_samples(coords).reshape(*resolution)
+    log_density -= np.sum(np.log(maxs))
 
-    return (x * xmax) + xmin, (y * ymax) + ymin, np.exp(log_density)
+    axes = [ax * axmax + axmin for ax, axmax, axmin in zip(
+        scaled_axes, maxs, mins)]
+
+    return log_density, axes
 
 
 def pretty_print(quantities, labels, title):
@@ -181,21 +104,33 @@ def myin1d(a, b, kind=None):
     return np.where(loc)[0][order]
 
 
-def infer_snapnums(haloids):
-    """
-    Infer the snapshot numbers from a list of halo IDs in the AMIGA Halo Finder
-    format.
+def churazov_smooth(x, y, width=None):
 
     """
+    Smoothing algorithm described in Appendix B of Churazov et al. 2010,
+    doi:10.1111/j.1365-2966.2010.16377.x
 
-    snapids = haloids / 1e12
+    """
 
-    if np.size(haloids) > 1:
-        snapids = snapids.astype(int)
-    else:
-        if isinstance(snapids, int) is False:
-            snapids = int(snapids)
-        else:
-            snapids = np.asscalar(snapids)
+    def weight(r0, rr, w):
+        return np.exp(-np.log10(r0 / rr) ** 2 / (2 * w ** 2))
 
-    return snapids
+    def calc_coeffs(r0, rr, yy, w):
+        W = weight(r0, rr, w)
+        lrr = np.log10(rr)
+        lyy = np.log10(yy)
+        a1 = np.sum(lrr * W * lyy) * np.sum(W) - \
+            np.sum(W * lyy) * np.sum(lrr * W)
+        a2 = np.sum(lrr ** 2 * W) * np.sum(W) - np.sum(lrr * W) ** 2
+
+        a = a1 / a2
+        b = (np.sum(W * lyy) - a * np.sum(lrr * W)) / np.sum(W)
+
+        return a, b
+
+    lx = np.log10(x)
+    if width is None:
+        width = lx[1] - lx[0]
+    coeffs = [calc_coeffs(xi, x, y, width) for xi in x]
+
+    return np.array([a * lxi + b for (a, b), lxi in zip(coeffs, lx)])
