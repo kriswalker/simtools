@@ -145,8 +145,10 @@ class GadgetBox:
             offset += 4
 
             datafile.seek(offset, os.SEEK_SET)
-            self.number_of_particles_this_file = np.fromfile(
+            self.number_of_particles_this_file_by_type = np.fromfile(
                 datafile, dtype=np.int32, count=6)
+            self.number_of_particles_this_file = \
+                self.number_of_particles_this_file_by_type[self.particle_type]
 
             offset += 24
             datafile.seek(offset, os.SEEK_SET)
@@ -167,6 +169,8 @@ class GadgetBox:
             datafile.seek(offset, os.SEEK_SET)
             self.number_of_particles_by_type = np.fromfile(
                 datafile, dtype=np.int32, count=6)
+            self.number_of_particles = self.number_of_particles_by_type[
+                self.particle_type]
 
             offset += 24
             offset += 4  # FlagCooling
@@ -177,9 +181,6 @@ class GadgetBox:
             offset += 4
             datafile.seek(offset, os.SEEK_SET)
             self.box_size = np.fromfile(datafile, dtype=np.float64, count=1)[0]
-
-            self.number_of_particles = self.number_of_particles_by_type[
-                self.particle_type]
 
             self.cm_per_kpc = 3.085678e21
             self.g_per_1e10Msun = 1.989e43
@@ -236,8 +237,8 @@ class GadgetSnap(GadgetBox):
                  load_masses=True, cutout_positions=None, cutout_radii=None,
                  use_kdtree=True, read_mode=1, npool=None,
                  unit_length_in_cm=None, unit_mass_in_g=None,
-                 unit_velocity_in_cm_per_s=None, to_physical=False,
-                 number_of_particles=None, buffer=0.0, verbose=True):
+                 unit_velocity_in_cm_per_s=None, to_physical=False, buffer=0.0,
+                 verbose=True):
 
         super().__init__(unit_length_in_cm, unit_mass_in_g,
                          unit_velocity_in_cm_per_s)
@@ -271,9 +272,9 @@ class GadgetSnap(GadgetBox):
                 print('Found {} snapshot file(s) for snapshot {} in directory'
                       ' {}'.format(nsnap, snapshot_number, path))
                 start = time.time()
-            self.read_snap_(snapshot_files, number_of_particles, load_ids,
-                            load_coords, load_vels, load_masses,
-                            cutout_positions, cutout_radii, read_mode)
+            self.read_snap_(snapshot_files, load_ids, load_coords, load_vels,
+                            load_masses, cutout_positions, cutout_radii,
+                            read_mode)
             if verbose:
                 print("...Loaded in {0} seconds\n".format(
                     round(time.time() - start, 4)))
@@ -306,41 +307,63 @@ class GadgetSnap(GadgetBox):
         else:
             raise ValueError(subfile_err_msg)
 
-    def read_snap_(self, filenames, number_of_particles, load_ids, load_coords,
+    def read_snap_(self, filenames, load_ids, load_coords,
                    load_vels, load_masses, cutout_positions, cutout_radii,
                    read_mode):
 
         def read_snap_legacy(fnames):
+
             snap = open(fnames[0], 'rb')
 
             self.read_parameters(snap, self.snapshot_format)
-            self.number_of_particles = number_of_particles
+
+            if self.number_of_particles_by_type[self.particle_type] == 0:
+                self.ids = np.array([])
+                self.coords = np.array([])
+                self.vels = np.array([])
+                self.masses = np.array([])
+                if self.particle_type == 0:
+                    self.us_all = np.array([])
+                    self.rhos_all = np.array([])
+
+                return
+
             coords_all, vels_all, ids_all, masses_all = [], [], [], []
             if self.particle_type == 0:
                 us_all, rhos_all = [], []
 
-            npart_total = np.sum(self.number_of_particles_by_type)
-            npart = self.number_of_particles_by_type[self.particle_type]
-            ptype_offset = np.sum(np.array(
-                self.number_of_particles_by_type[:self.particle_type + 1])) \
-                - npart
-
             idx_with_mass = np.where(self.mass_table == 0)[0]
-            npart_by_type_in_mass_block = self.number_of_particles_by_type[
-                idx_with_mass]
-            npart_total_in_mass_block = np.sum(
-                npart_by_type_in_mass_block)
-            masses_from_table = True
             if self.particle_type in idx_with_mass:
                 masses_from_table = False
-                ptype_ind_in_mass_block = np.where(
-                    idx_with_mass == self.particle_type)[0][0]
-                ptype_offset_in_mass_block = np.sum(np.array(
-                    npart_by_type_in_mass_block[:ptype_ind_in_mass_block+1])) \
-                    - npart
+            else:
+                masses_from_table = True
 
             for f in fnames:
                 snap = open(f, 'rb')
+
+                self.read_parameters(snap, self.snapshot_format)
+
+                npart_total = np.sum(
+                    self.number_of_particles_this_file_by_type)
+                npart = self.number_of_particles_this_file_by_type[
+                    self.particle_type]
+                ptype_offset = np.sum(np.array(
+                    self.number_of_particles_this_file_by_type[
+                        :self.particle_type + 1])) - npart
+
+                if npart == 0:
+                    continue
+
+                npart_by_type_in_mass_block = \
+                    self.number_of_particles_this_file_by_type[idx_with_mass]
+                npart_total_in_mass_block = np.sum(
+                    npart_by_type_in_mass_block)
+                if not masses_from_table:
+                    ptype_ind_in_mass_block = np.where(
+                        idx_with_mass == self.particle_type)[0][0]
+                    ptype_offset_in_mass_block = np.sum(np.array(
+                        npart_by_type_in_mass_block[
+                            :ptype_ind_in_mass_block + 1])) - npart
 
                 offset = 264  # includes 2 x 4 byte buffers
                 offset += 16
@@ -470,8 +493,8 @@ class GadgetSnap(GadgetBox):
                 if cutout_positions is not None:
                     coords = snappt['Coordinates'][()]
                     if self.use_kdtree:
-                        kdtree = KDTree(coords,
-                                        boxsize=self.box_size*(1 + self.buffer))
+                        kdtree = KDTree(
+                            coords, boxsize=self.box_size*(1 + self.buffer))
                         cutout_inds = kdtree.query_ball_point(
                             cutout_positions, cutout_radii)
                     else:
