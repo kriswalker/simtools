@@ -1,69 +1,97 @@
 import numpy as np
 from scipy.signal import savgol_filter
+from healpy.pixelfunc import npix2nside, ang2pix
 
 from simtools.utils import magnitude, simple_derivative, churazov_smooth
 
 
-def bin_halo(coords, n_radial_bins, n_angular_bins, radius_limits):
+def bin_halo(coords, radius_limits, n_radial_bins, n_angular_bins):
 
-    rlim1, rlim2 = np.log10(radius_limits)
-    radial_bins = np.linspace(rlim1, rlim2, n_radial_bins+1)
+    r = magnitude(coords)
+    if radius_limits is None:
+        radius_limits = (min(r), max(r))
 
-    logr = np.log10(magnitude(coords))
-    inside_rlims = np.argwhere((logr >= rlim1) & (logr <= rlim2)).flatten()
-    logr = logr[inside_rlims]
+    radial_bins = 10**np.linspace(*np.log10(radius_limits), n_radial_bins + 1)
+    inside_rlims = np.argwhere(
+        (r >= radius_limits[0]) & (r <= radius_limits[1])).flatten()
+    r = r[inside_rlims]
 
     if n_angular_bins > 1:
-        angular_bins = np.linspace(-np.pi, np.pi, n_angular_bins+1)
-    rad_digits = np.digitize(logr, radial_bins)
-    binned_inds = []
-    for n in range(1, n_radial_bins+1):
-        inside_shell = np.argwhere(rad_digits == n).flatten()
-        x, y, z = coords[inside_rlims[inside_shell]].T
+        x, y, z = np.copy(coords)[inside_rlims].T
+        theta = np.arccos(z / r)
+        phi = np.arctan2(y, x)
+        pixels = ang2pix(npix2nside(n_angular_bins), theta, phi)
+
+    binds = []
+    for na in range(n_angular_bins):
 
         if n_angular_bins > 1:
-            binned_inds_shell = []
-            for coord_pair in [[y, x], [z, x], [z, y]]:
-                phi = np.arctan2(*coord_pair)
-                ang_digits = np.digitize(phi, angular_bins)
-                for m in range(1, n_angular_bins+1):
-                    inside_slice = np.argwhere(ang_digits == m).flatten()
-                    binned_inds_shell.append(
-                        inside_rlims[inside_shell[inside_slice]])
+            inside_angle = np.argwhere(pixels == na).flatten()
+            ra = r[inside_angle]
+            rad_digits = np.digitize(ra, radial_bins)-1
         else:
-            binned_inds_shell = inside_shell
-        binned_inds.append(binned_inds_shell)
+            inside_angle = np.arange(len(r))
+            rad_digits = np.digitize(r, radial_bins)-1
 
-    logrx_offset = radial_bins + (radial_bins[1] - radial_bins[0]) / 2
-    redges = 10**radial_bins
+        binds_angle = []
+        for nr in range(n_radial_bins):
+
+            inside_shell = np.argwhere(rad_digits == nr).flatten()
+            binds_angle.append(inside_rlims[inside_angle[inside_shell]])
+
+        binds.append(binds_angle)
+
+    if n_angular_bins == 1:
+        binds = binds[0]
+
+    log_radial_bins = np.log10(radial_bins)
+    logrx_offset = log_radial_bins + \
+        (log_radial_bins[1] - log_radial_bins[0]) / 2
     rcenters = 10**logrx_offset[:-1]
 
-    return binned_inds, redges, rcenters
+    return binds, radial_bins, rcenters
 
 
-def calc_density_profile(masses, coords=None, n_radial_bins=None,
-                         n_angular_bins=None, radius_limits=None,
-                         binned_halo=None):
+def calc_density_profile(masses, coords=None, radius_limits=None,
+                         n_radial_bins=None, n_angular_bins=None,
+                         averaging='median', binned_halo=None):
 
     if binned_halo is None:
         binds, redges, rcenters = bin_halo(
-            coords, n_radial_bins, n_angular_bins, radius_limits)
+            coords, radius_limits, n_radial_bins, n_angular_bins)
     else:
         binds, redges, rcenters = binned_halo
 
-    n_angular_bins = int(len(binds[0]) / 3)
+    shell_vols = ((4 * np.pi / 3) * (redges[1:]**3 - redges[:-1]**3))
+    bin_vols = shell_vols / n_angular_bins
+
     density_profiles = []
-    for i in range(3 * n_angular_bins):
+
+    def calc_profile(binds_subset):
         if isinstance(masses, np.ndarray):
-            bin_masses = np.array([np.sum(masses[inds[i]]) for inds in binds])
+            bin_masses = np.array(
+                [np.sum(masses[inds]) for inds in binds_subset])
         else:
-            bin_masses = np.array([masses * len(inds[i]) for inds in binds])
-        shell_vols = ((4 * np.pi / 3) * (redges[1:]**3 - redges[:-1]**3))
-        density_profiles.append(bin_masses / (shell_vols / n_angular_bins))
+            bin_masses = np.array(
+                [masses*len(inds) for inds in binds_subset])
 
-    density_profiles = np.array(density_profiles)
+        return bin_masses / bin_vols
 
-    return rcenters, np.median(density_profiles, axis=0)
+    if isinstance(binds[np.argwhere(
+            np.array([len(x) for x in binds]) > 0).flat[0]][0], np.ndarray):
+        if averaging == 'median':
+            f = np.median
+        elif averaging == 'mean':
+            f = np.mean
+        else:
+            raise ValueError(
+                'Averaging method `{}` not recognized. '.format(averaging) +
+                'Must be either `median` or `mean`.')
+        for binds_angle in binds:
+            density_profiles.append(calc_profile(binds_angle))
+        return rcenters, f(np.array(density_profiles), axis=0)
+    else:
+        return rcenters, calc_profile(binds)
 
 
 def calc_log_density_slope_profile(density_profile, r=None, window_length=1,
