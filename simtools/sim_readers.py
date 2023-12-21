@@ -7,18 +7,19 @@ import time
 import warnings
 from pathos.multiprocessing import ProcessingPool as Pool
 
-from simtools.utils import hubble_parameter, magnitude
+from simtools.quantities import hubble_parameter
+from simtools.utils import vector_norm
 
 
 class GadgetBox:
 
-    def __init__(self, internal_length_unit=None, internal_mass_unit=None,
-                 internal_velocity_unit=None):
+    def __init__(self, unit_length_in_cm=None, unit_mass_in_g=None,
+                 unit_velocity_in_cm_per_s=None):
 
         # Units for format 1/2 data. Later overwritten if data is in format 3.
-        self.unit_length = internal_length_unit
-        self.unit_mass = internal_mass_unit
-        self.unit_velocity = internal_velocity_unit
+        self.unit_length_in_cm = unit_length_in_cm
+        self.unit_mass_in_g = unit_mass_in_g
+        self.unit_velocity_in_cm_per_s = unit_velocity_in_cm_per_s
 
     def read_parameters(self, datafile, file_format):
 
@@ -47,13 +48,13 @@ class GadgetBox:
                 if 'Hubble' in datafile['Header'].attrs:
                     self.hubble = datafile['Header'].attrs['Hubble']
                 if 'UnitLength_in_cm' in datafile['Header'].attrs:
-                    self.unit_length = datafile['Header'].attrs[
+                    self.unit_length_in_cm = datafile['Header'].attrs[
                         'UnitLength_in_cm']
                 if 'UnitMass_in_g' in datafile['Header'].attrs:
-                    self.unit_mass = datafile['Header'].attrs[
+                    self.unit_mass_in_g = datafile['Header'].attrs[
                         'UnitMass_in_g']
                 if 'UnitVelocity_in_cm_per_s' in datafile['Header'].attrs:
-                    self.unit_velocity = datafile['Header'].attrs[
+                    self.unit_velocity_in_cm_per_s = datafile['Header'].attrs[
                         'UnitVelocity_in_cm_per_s']
             if 'Parameters' in datafile:
                 if 'Time' in datafile['Parameters'].attrs:
@@ -82,62 +83,14 @@ class GadgetBox:
                 if 'Hubble' in datafile['Parameters'].attrs:
                     self.hubble = datafile['Parameters'].attrs['Hubble']
                 if 'UnitLength_in_cm' in datafile['Parameters'].attrs:
-                    self.unit_length = datafile['Parameters'].attrs[
+                    self.unit_length_in_cm = datafile['Parameters'].attrs[
                         'UnitLength_in_cm']
                 if 'UnitMass_in_g' in datafile['Parameters'].attrs:
-                    self.unit_mass = datafile['Parameters'].attrs[
+                    self.unit_mass_in_g = datafile['Parameters'].attrs[
                         'UnitMass_in_g']
                 if 'UnitVelocity_in_cm_per_s' in datafile['Parameters'].attrs:
-                    self.unit_velocity = datafile['Parameters'].attrs[
-                        'UnitVelocity_in_cm_per_s']
-
-            self.cm_per_kpc = 3.085678e21
-            self.g_per_1e10Msun = 1.989e43
-            self.cmps_per_kmps = 1.0e5
-            if self.unit_length is None:
-                warnings.warn('No value for `UnitLength_in_cm` found!'
-                              ' Assuming GADGET-4 default of {}.'.format(
-                                self.cm_per_kpc))
-                self.unit_length = self.cm_per_kpc
-            if self.unit_mass is None:
-                warnings.warn('No value for `UnitMass_in_g` found!'
-                              ' Assuming GADGET-4 default of {}.'.format(
-                                self.g_per_1e10Msun))
-                self.unit_mass = self.g_per_1e10Msun
-            if self.unit_velocity is None:
-                warnings.warn('No value for `UnitVelocity_in_cm_per_s` found!'
-                              ' Assuming GADGET-4 default of {}.'.format(
-                                self.cmps_per_kmps))
-                self.unit_velocity = self.cmps_per_kmps
-            length_norm = self.unit_length / self.cm_per_kpc
-            mass_norm = self.unit_mass / self.g_per_1e10Msun
-            velocity_norm = self.unit_velocity / self.cmps_per_kmps
-            self.gravitational_constant = 43009.1727 * mass_norm / \
-                (length_norm * velocity_norm**2)
-
-            if not hasattr(self, 'Omega0'):
-                self.Omega0 = 0
-            if not hasattr(self, 'OmegaBaryon'):
-                self.OmegaBaryon = 0
-            if not hasattr(self, 'OmegaLambda'):
-                self.OmegaLambda = 0
-            if not hasattr(self, 'h'):
-                warnings.warn('No value for `HubbleParam` found!'
-                              ' Assuming GADGET-4 default of 0.7.')
-                self.h = 0.7
-            if not hasattr(self, 'hubble'):
-                self.hubble = 0.1 * length_norm / velocity_norm
-                warnings.warn('No value for `Hubble` found!'
-                              ' Using Hubble={}.'.format(self.hubble))
-
-            self.hubble_constant = self.h * self.hubble
-            if hasattr(self, 'redshift'):
-                self.hubble_parameter = hubble_parameter(
-                    self.redshift, self.hubble_constant,
-                    self.Omega0, self.OmegaLambda, 0)
-
-            self.critical_density = 3 * (self.hubble_parameter / self.h)**2 / \
-                (8 * np.pi * self.gravitational_constant)
+                    self.unit_velocity_in_cm_per_s = datafile[
+                        'Parameters'].attrs['UnitVelocity_in_cm_per_s']
 
         else:
             offset = 0
@@ -182,30 +135,6 @@ class GadgetBox:
             datafile.seek(offset, os.SEEK_SET)
             self.box_size = np.fromfile(datafile, dtype=np.float64, count=1)[0]
 
-            self.cm_per_kpc = 3.085678e21
-            self.g_per_1e10Msun = 1.989e43
-            self.cmps_per_kmps = 1.0e5
-            if self.unit_length is None:
-                warnings.warn('No value for `UnitLength_in_cm` found!'
-                              ' Assuming GADGET-4 default of {}.'.format(
-                                self.cm_per_kpc))
-                self.unit_length = self.cm_per_kpc
-            if self.unit_mass is None:
-                warnings.warn('No value for `UnitMass_in_g` found!'
-                              ' Assuming GADGET-4 default of {}.'.format(
-                                self.g_per_1e10Msun))
-                self.unit_mass = self.g_per_1e10Msun
-            if self.unit_velocity is None:
-                warnings.warn('No value for `UnitVelocity_in_cm_per_s` found!'
-                              ' Assuming GADGET-4 default of {}.'.format(
-                                self.cmps_per_kmps))
-                self.unit_velocity = self.cmps_per_kmps
-            length_norm = self.unit_length / self.cm_per_kpc
-            mass_norm = self.unit_mass / self.g_per_1e10Msun
-            velocity_norm = self.unit_velocity / self.cmps_per_kmps
-            self.gravitational_constant = 43009.1727 * mass_norm / \
-                (length_norm * velocity_norm**2)
-
             offset += 8
             datafile.seek(offset, os.SEEK_SET)
             self.Omega0 = np.fromfile(datafile, dtype=np.float64, count=1)[0]
@@ -218,14 +147,56 @@ class GadgetBox:
             offset += 8
             datafile.seek(offset, os.SEEK_SET)
             self.h = np.fromfile(datafile, dtype=np.float64, count=1)[0]
+
+        self.cm_per_kpc = 3.085678e21
+        self.g_per_1e10Msun = 1.989e43
+        self.cmps_per_kmps = 1.0e5
+        if self.unit_length_in_cm is None:
+            warnings.warn('No value for `UnitLength_in_cm` found!'
+                          ' Assuming GADGET-4 default of {}.'.format(
+                            self.cm_per_kpc))
+            self.unit_length_in_cm = self.cm_per_kpc
+        if self.unit_mass_in_g is None:
+            warnings.warn('No value for `UnitMass_in_g` found!'
+                          ' Assuming GADGET-4 default of {}.'.format(
+                            self.g_per_1e10Msun))
+            self.unit_mass_in_g = self.g_per_1e10Msun
+        if self.unit_velocity_in_cm_per_s is None:
+            warnings.warn('No value for `UnitVelocity_in_cm_per_s` found!'
+                          ' Assuming GADGET-4 default of {}.'.format(
+                            self.cmps_per_kmps))
+            self.unit_velocity_in_cm_per_s = self.cmps_per_kmps
+        self.unit_time_in_s = self.unit_length_in_cm / \
+            self.unit_velocity_in_cm_per_s
+        length_norm = self.unit_length_in_cm / self.cm_per_kpc
+        mass_norm = self.unit_mass_in_g / self.g_per_1e10Msun
+        velocity_norm = self.unit_velocity_in_cm_per_s / self.cmps_per_kmps
+        self.gravitational_constant = 43009.1727 * mass_norm / \
+            (length_norm * velocity_norm**2)
+
+        if not hasattr(self, 'Omega0'):
+            self.Omega0 = 0
+        if not hasattr(self, 'OmegaBaryon'):
+            self.OmegaBaryon = 0
+        if not hasattr(self, 'OmegaLambda'):
+            self.OmegaLambda = 0
+        if not hasattr(self, 'h'):
+            warnings.warn('No value for `HubbleParam` found!'
+                          ' Assuming GADGET-4 default of 0.7.')
+            self.h = 0.7
+        if not hasattr(self, 'hubble'):
             self.hubble = 0.1 * length_norm / velocity_norm
-            self.hubble_constant = self.h * self.hubble
+            warnings.warn('No value for `Hubble` found!'
+                          ' Using Hubble={}.'.format(self.hubble))
+
+        self.hubble_constant = self.h * self.hubble
+        if hasattr(self, 'redshift'):
             self.hubble_parameter = hubble_parameter(
                 self.redshift, self.hubble_constant,
                 self.Omega0, self.OmegaLambda, 0)
 
-            self.critical_density = 3 * (self.hubble_parameter / self.h)**2 / \
-                (8 * np.pi * self.gravitational_constant)
+        self.critical_density = 3 * (self.hubble_parameter / self.h)**2 / \
+            (8 * np.pi * self.gravitational_constant)
 
         return
 
@@ -439,7 +410,7 @@ class GadgetSnap(GadgetBox):
 
             if cutout_positions is not None:
                 coords = np.concatenate(coords_all)
-                r = magnitude(coords - cutout_positions[0])
+                r = vector_norm(coords - cutout_positions[0])
                 inds = np.argwhere(r < cutout_radii[0]).flatten()
 
                 self.ids = np.concatenate(ids_all)[inds]
@@ -500,7 +471,7 @@ class GadgetSnap(GadgetBox):
                     else:
                         cutout_inds = []
                         for pos, rad in zip(cutout_positions, cutout_radii):
-                            r = magnitude(coords - pos)
+                            r = vector_norm(coords - pos)
                             cutout_inds.append(np.argwhere(r < rad).flatten())
                     region_lens = [len(inds) for inds in cutout_inds]
                     cutout_inds = np.hstack(cutout_inds).astype(int)
@@ -986,19 +957,19 @@ class VelociraptorCat:
             group['M_200m'][gslice] = cat_props['Mass_200mean'][()] * self.h
             group['Mass'][gslice] = cat_props['Mass_FOF'][()] * self.h
             posx, posy, posz = \
-                cat_props['Xcmbp'][()] * self.h / self.scale_factor, \
-                cat_props['Ycmbp'][()] * self.h / self.scale_factor, \
-                cat_props['Zcmbp'][()] * self.h / self.scale_factor
+                cat_props['Xcmbp'][()] / self.scale_factor, \
+                cat_props['Ycmbp'][()] / self.scale_factor, \
+                cat_props['Zcmbp'][()] / self.scale_factor
             group['Pos'][gslice] = np.vstack((posx, posy, posz)).T
             cmx, cmy, cmz = \
-                cat_props['Xc'][()] * self.h / self.scale_factor, \
-                cat_props['Yc'][()] * self.h / self.scale_factor, \
-                cat_props['Zc'][()] * self.h / self.scale_factor
+                cat_props['Xc'][()] / self.scale_factor, \
+                cat_props['Yc'][()] / self.scale_factor, \
+                cat_props['Zc'][()] / self.scale_factor
             group['CM'][gslice] = np.vstack((cmx, cmy, cmz)).T
             # mpx, mpy, mpz = \
-            #     cat_props['Xcminpot'][()] * self.h / self.scale_factor, \
-            #     cat_props['Ycminpot'][()] * self.h / self.scale_factor, \
-            #     cat_props['Zcminpot'][()] * self.h / self.scale_factor
+            #     cat_props['Xcminpot'][()] / self.scale_factor, \
+            #     cat_props['Ycminpot'][()] / self.scale_factor, \
+            #     cat_props['Zcminpot'][()] / self.scale_factor
             # group['PosMinPot'][gslice] = np.vstack((mpx, mpy, mpz)).T
             velx, vely, velz = cat_props['VXcmbp'][()],\
                 cat_props['VYcmbp'][()], cat_props['VZcmbp'][()]

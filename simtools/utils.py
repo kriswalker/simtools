@@ -10,17 +10,7 @@ def recenter_coordinates(position, boxsize):
     return position
 
 
-def hubble_parameter(z, H0, Omega_m, Omega_Lambda, Omega_k):
-    return H0 * np.sqrt(Omega_m * (1 + z)**3 +
-                        Omega_k * (1 + z)**2 +
-                        Omega_Lambda)
-
-
-def add_hubble_flow(velocity, position, z, H0, **Omega):
-    return velocity + position * hubble_parameter(z, H0, **Omega)
-
-
-def magnitude(vectors, return_magnitude=True, return_unit_vectors=False):
+def vector_norm(vectors, return_magnitude=True, return_unit_vectors=False):
     vmags = np.sqrt(np.einsum('...i,...i', vectors, vectors))
     if return_magnitude and return_unit_vectors:
         return vmags, vectors / vmags[:, np.newaxis]
@@ -28,14 +18,6 @@ def magnitude(vectors, return_magnitude=True, return_unit_vectors=False):
         return vmags
     elif return_unit_vectors:
         return vectors / vmags[:, np.newaxis]
-
-
-def radial_velocity(coords, vels, return_radii=False):
-    rads = magnitude(coords)
-    if return_radii:
-        return np.einsum('...i,...i', vels, coords) / rads, rads
-    else:
-        return np.einsum('...i,...i', vels, coords) / rads
 
 
 def simple_derivative(x, y, window_length=1):

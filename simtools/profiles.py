@@ -2,12 +2,12 @@ import numpy as np
 from scipy.signal import savgol_filter
 from healpy.pixelfunc import npix2nside, ang2pix
 
-from simtools.utils import magnitude, simple_derivative, churazov_smooth
+from simtools.utils import vector_norm, simple_derivative, churazov_smooth
 
 
 def bin_halo(coords, radius_limits, n_radial_bins, n_angular_bins):
 
-    r = magnitude(coords)
+    r = vector_norm(coords)
     if radius_limits is None:
         radius_limits = (min(r), max(r))
 
@@ -151,8 +151,7 @@ def calc_mass_profile(masses, coords=None, n_radial_bins=None,
 
     if binned_halo is None:
         binds, _, rcenters = bin_halo(
-            coords, n_radial_bins, n_angular_bins=1,
-            radius_limits=radius_limits)
+            coords, radius_limits, n_radial_bins, n_angular_bins=1)
     else:
         binds, _, rcenters = binned_halo
 

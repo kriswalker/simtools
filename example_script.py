@@ -3,8 +3,8 @@ from simtools.sim_readers import GadgetSnap, GadgetCat
 
 ###############################################################################
 
-snapshot_dir = 'data/DM-L25-N128-eps0.004/snapshots'
-catalaogue_dir = 'data/DM-L25-N128-eps0.004/catalogues'
+snapshot_dir = 'path/to/snapshots'
+catalaogue_dir = 'path/to/catalogues'
 snapshot_filename = 'snapshot_{}.hdf5'
 catalogue_filename = 'fof_subhalo_tab_{}.hdf5'
 read_mode = 1
