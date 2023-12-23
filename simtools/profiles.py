@@ -3,6 +3,8 @@ from scipy.signal import savgol_filter
 from healpy.pixelfunc import npix2nside, ang2pix
 
 from simtools.utils import vector_norm, simple_derivative, churazov_smooth
+from simtools.quantities import radial_velocity, azimuthal_velocity, \
+    velocity_dispersion
 
 
 def bin_halo(coords, radius_limits, n_radial_bins, n_angular_bins):
@@ -54,7 +56,7 @@ def bin_halo(coords, radius_limits, n_radial_bins, n_angular_bins):
 
 def calc_density_profile(masses, coords=None, radius_limits=None,
                          n_radial_bins=None, n_angular_bins=None,
-                         averaging='median', binned_halo=None):
+                         binned_halo=None):
 
     if binned_halo is None:
         binds, redges, rcenters = bin_halo(
@@ -62,10 +64,12 @@ def calc_density_profile(masses, coords=None, radius_limits=None,
     else:
         binds, redges, rcenters = binned_halo
 
+    uses_angular_binning = isinstance(binds[np.argwhere(
+            np.array([len(x) for x in binds]) > 0).flat[0]][0], np.ndarray)
+    n_angular_bins = len(binds) if uses_angular_binning else 1
+
     shell_vols = ((4 * np.pi / 3) * (redges[1:]**3 - redges[:-1]**3))
     bin_vols = shell_vols / n_angular_bins
-
-    density_profiles = []
 
     def calc_profile(binds_subset):
         if isinstance(masses, np.ndarray):
@@ -77,19 +81,11 @@ def calc_density_profile(masses, coords=None, radius_limits=None,
 
         return bin_masses / bin_vols
 
-    if isinstance(binds[np.argwhere(
-            np.array([len(x) for x in binds]) > 0).flat[0]][0], np.ndarray):
-        if averaging == 'median':
-            f = np.median
-        elif averaging == 'mean':
-            f = np.mean
-        else:
-            raise ValueError(
-                'Averaging method `{}` not recognized. '.format(averaging) +
-                'Must be either `median` or `mean`.')
+    if uses_angular_binning:
+        density_profiles = []
         for binds_angle in binds:
             density_profiles.append(calc_profile(binds_angle))
-        return rcenters, f(np.array(density_profiles), axis=0)
+        return rcenters, np.median(np.array(density_profiles), axis=0)
     else:
         return rcenters, calc_profile(binds)
 
@@ -146,13 +142,106 @@ def calc_log_density_slope_profile(density_profile, r=None, window_length=1,
             np.log10(r), np.log10(density_profile), window_length)
 
 
-def calc_mass_profile(masses, coords=None, n_radial_bins=None,
-                      radius_limits=None, binned_halo=None):
+def calc_mass_profile(masses, coords=None, radius_limits=None,
+                      n_radial_bins=None, binned_halo=None):
 
     if binned_halo is None:
-        binds, _, rcenters = bin_halo(
+        binds, redges, _ = bin_halo(
             coords, radius_limits, n_radial_bins, n_angular_bins=1)
     else:
-        binds, _, rcenters = binned_halo
+        binds, redges, _ = binned_halo
 
-    return rcenters, np.array([np.sum(masses[inds]) for inds in binds[1]])
+    if isinstance(masses, np.ndarray):
+        bin_masses = np.array([np.sum(masses[inds]) for inds in binds])
+    else:
+        bin_masses = np.array([masses*len(inds) for inds in binds])
+
+    return redges[1:], np.cumsum(bin_masses)
+
+
+def calc_circular_velocity_profile(masses, gravitational_constant, coords=None,
+                                   radius_limits=None, n_radial_bins=None,
+                                   binned_halo=None):
+
+    r, mass_profile = calc_mass_profile(
+        masses, coords, radius_limits, n_radial_bins,
+        binned_halo)
+
+    return r, np.sqrt(gravitational_constant * mass_profile / r)
+
+
+def calc_radial_velocity_profile(vels, coords, radius_limits=None,
+                                 n_radial_bins=None, n_angular_bins=None,
+                                 binned_halo=None):
+
+    if binned_halo is None:
+        binds, redges, rcenters = bin_halo(
+            coords, radius_limits, n_radial_bins, n_angular_bins)
+    else:
+        binds, redges, rcenters = binned_halo
+
+    def calc_profile(binds_subset):
+        return np.array([
+            np.mean(radial_velocity(coords[inds], vels[inds])) for inds in
+            binds_subset])
+
+    if isinstance(binds[np.argwhere(
+            np.array([len(x) for x in binds]) > 0).flat[0]][0], np.ndarray):
+        radial_velocity_profiles = np.array(
+            [calc_profile(binds_angle) for binds_angle in binds])
+        return rcenters, np.median(radial_velocity_profiles, axis=0)
+    else:
+        return rcenters, calc_profile(binds)
+
+
+def calc_azimuthal_velocity_profile(vels, coords, radius_limits=None,
+                                    n_radial_bins=None, n_angular_bins=None,
+                                    binned_halo=None):
+
+    if binned_halo is None:
+        binds, redges, rcenters = bin_halo(
+            coords, radius_limits, n_radial_bins, n_angular_bins)
+    else:
+        binds, redges, rcenters = binned_halo
+
+    def calc_profile(binds_subset):
+        return np.array([
+            np.mean(azimuthal_velocity(coords[inds], vels[inds])) for inds in
+            binds_subset])
+
+    if isinstance(binds[np.argwhere(
+            np.array([len(x) for x in binds]) > 0).flat[0]][0], np.ndarray):
+        azimuthal_velocity_profiles = np.array(
+            [calc_profile(binds_angle) for binds_angle in binds])
+        return rcenters, np.median(
+            np.array(azimuthal_velocity_profiles), axis=0)
+    else:
+        return rcenters, calc_profile(binds)
+
+
+def calc_velocity_dispersion_profile(vels, masses=None, coords=None,
+                                     radius_limits=None, n_radial_bins=None,
+                                     n_angular_bins=None, binned_halo=None):
+
+    if binned_halo is None:
+        binds, redges, rcenters = bin_halo(
+            coords, radius_limits, n_radial_bins, n_angular_bins)
+    else:
+        binds, redges, rcenters = binned_halo
+
+    def calc_profile(binds_subset):
+        profile, m = [], None
+        for inds in binds_subset:
+            if masses is not None:
+                m = masses[inds]
+            profile.append(velocity_dispersion(vels[inds], m))
+        return np.array(profile)
+
+    if isinstance(binds[np.argwhere(
+            np.array([len(x) for x in binds]) > 0).flat[0]][0], np.ndarray):
+        velocity_dispersion_profiles = np.array(
+            [calc_profile(binds_angle) for binds_angle in binds])
+        return rcenters, np.median(
+            np.array(velocity_dispersion_profiles), axis=0)
+    else:
+        return rcenters, calc_profile(binds)
