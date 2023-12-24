@@ -63,7 +63,7 @@ def velocity_dispersion_profile_nfw(r, virial_radius, concentration,
         factor = 1 - anisotropy
     else:
         raise ValueError(
-            '`kind` not recognized. Must be one of `total`, `radial`, or'
-            ' `azimuthal`')
+            'kind not recognized. Must be either `total`, `radial`, or'
+            ' `azimuthal`.')
     return np.sqrt(factor * g(concentration) * (1 + concentration * x)**2 *
                    x**(1 - 2 * anisotropy) * np.array(dispint))

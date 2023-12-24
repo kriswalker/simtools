@@ -221,27 +221,18 @@ def calc_azimuthal_velocity_profile(vels, coords, radius_limits=None,
 
 def calc_velocity_dispersion_profile(vels, masses=None, coords=None,
                                      radius_limits=None, n_radial_bins=None,
-                                     n_angular_bins=None, binned_halo=None):
+                                     binned_halo=None):
 
     if binned_halo is None:
         binds, redges, rcenters = bin_halo(
-            coords, radius_limits, n_radial_bins, n_angular_bins)
+            coords, radius_limits, n_radial_bins, n_angular_bins=1)
     else:
         binds, redges, rcenters = binned_halo
 
-    def calc_profile(binds_subset):
-        profile, m = [], None
-        for inds in binds_subset:
-            if masses is not None:
-                m = masses[inds]
-            profile.append(velocity_dispersion(vels[inds], m))
-        return np.array(profile)
+    profile, m = [], None
+    for inds in binds:
+        if masses is not None:
+            m = masses[inds]
+        profile.append(velocity_dispersion(vels[inds], m))
 
-    if isinstance(binds[np.argwhere(
-            np.array([len(x) for x in binds]) > 0).flat[0]][0], np.ndarray):
-        velocity_dispersion_profiles = np.array(
-            [calc_profile(binds_angle) for binds_angle in binds])
-        return rcenters, np.median(
-            np.array(velocity_dispersion_profiles), axis=0)
-    else:
-        return rcenters, calc_profile(binds)
+    return rcenters, np.array(profile)
