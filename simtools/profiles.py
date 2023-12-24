@@ -182,7 +182,7 @@ def calc_radial_velocity_profile(vels, coords, radius_limits=None,
 
     def calc_profile(binds_subset):
         return np.array([
-            np.mean(radial_velocity(coords[inds], vels[inds])) for inds in
+            np.mean(radial_velocity(coords[inds], vels[inds])[0]) for inds in
             binds_subset])
 
     if isinstance(binds[np.argwhere(
@@ -206,8 +206,8 @@ def calc_azimuthal_velocity_profile(vels, coords, radius_limits=None,
 
     def calc_profile(binds_subset):
         return np.array([
-            np.mean(azimuthal_velocity(coords[inds], vels[inds])) for inds in
-            binds_subset])
+            np.mean(azimuthal_velocity(coords[inds], vels[inds])[0]) for inds
+            in binds_subset])
 
     if isinstance(binds[np.argwhere(
             np.array([len(x) for x in binds]) > 0).flat[0]][0], np.ndarray):

@@ -16,20 +16,15 @@ def radial_velocity(coords, vels, return_radii=False):
     rads, rhat = vector_norm(
         coords, return_magnitude=True, return_unit_vectors=True)
     if return_radii:
-        return np.einsum('...i,...i', vels, rhat), rads, rhat
+        return np.einsum('...i,...i', vels, rhat), rhat, rads
     else:
-        return np.einsum('...i,...i', vels, rhat)
+        return np.einsum('...i,...i', vels, rhat), rhat
 
 
-def azimuthal_velocity(coords, vels, return_radii=False):
-    rads, rhat = vector_norm(
-        coords, return_magnitude=True, return_unit_vectors=True)
-    vr = np.einsum('...i,...i', vels, rhat)
+def azimuthal_velocity(coords, vels):
+    vr, rhat = radial_velocity(coords, vels)
     vaz = vels - vr[:, np.newaxis] * rhat
-    if return_radii:
-        return vector_norm(vaz), rads
-    else:
-        return vector_norm(vaz)
+    return vector_norm(vaz, return_magnitude=True, return_unit_vectors=True)
 
 
 def velocity_dispersion(vels, masses=None):
