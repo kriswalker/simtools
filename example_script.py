@@ -1,5 +1,5 @@
 from simtools.box import Snapshot, Catalogue
-from simtools.sim_readers import GadgetSnap, GadgetCat
+from simtools.sim_readers import GadgetSnapshot, GadgetCatalogue
 
 ###############################################################################
 
@@ -14,18 +14,17 @@ snapshot_number = 48
 
 ###############################################################################
 
-snapshot = Snapshot(GadgetSnap,
+snapshot = Snapshot(GadgetSnapshot,
                     {'path': snapshot_dir,
                      'snapshot_filename': snapshot_filename,
                      'snapshot_number': snapshot_number,
                      'particle_type': particle_type,
                      'read_mode': read_mode,
-                     'to_physical': False,
                      'buffer': 1.0e-7,
                      'verbose': True}
                     )
 
-catalogue = Catalogue(GadgetCat,
+catalogue = Catalogue(GadgetCatalogue,
                       {'path': catalaogue_dir,
                        'catalogue_filename': catalogue_filename,
                        'snapshot_number': snapshot_number,
