@@ -11,7 +11,7 @@ setup(
     packages=['simtools'],
     setup_requires=['numpy'],
     install_requires=['numpy', 'scipy', 'matplotlib', 'h5py', 'py-sphviewer',
-                      'tabulate', 'scikit-learn', 'pathos'],
+                      'tabulate', 'scikit-learn', 'pathos', 'healpy'],
     include_package_data=True,
     zip_safe=False,
 )
