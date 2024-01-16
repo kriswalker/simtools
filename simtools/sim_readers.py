@@ -306,6 +306,7 @@ class GadgetSnapshot(GadgetBox):
                 masses_from_table = True
 
             for f in fnames:
+
                 snap = open(f, 'rb')
 
                 self.read_parameters(snap, self.snapshot_format)
@@ -451,12 +452,9 @@ class GadgetSnapshot(GadgetBox):
             self.read_parameters(snap, self.snapshot_format)
 
             def read_files(ii):
-                f = fnames[ii]
-                if self.snapshot_format == 3:
-                    snap = h5py.File(f, 'r')
-                else:
-                    snap = open(f, 'rb')
 
+                f = fnames[ii]
+                snap = h5py.File(f, 'r')
                 snappt = snap['PartType{}'.format(self.particle_type)]
 
                 if region_positions is not None:
@@ -568,7 +566,7 @@ class GadgetSnapshot(GadgetBox):
                 return ids, coords, vels, masses, metallicities, \
                     formation_times
 
-            if self.npool is None:
+            if self.npool is None or self.npool == 1:
                 snapdata = []
                 for fi in range(len(fnames)):
                     snapdata.append(read_files(fi))
@@ -586,9 +584,8 @@ class GadgetSnapshot(GadgetBox):
                     for ri in range(len(region_positions)):
                         regions.append(
                             np.concatenate([x[index][ri] for x in snapdata]))
-                    lens = [len(region) for region in regions]
-                    offsets = np.concatenate([[0], np.cumsum(lens)])
-                    return np.concatenate(regions), offsets
+                    lens = [0] + [len(region) for region in regions]
+                    return np.concatenate(regions), np.cumsum(lens)
 
             region_offsets = None
             if load_ids:
@@ -898,16 +895,18 @@ class VelociraptorCatalogue:
             halo[hkey] = np.empty(ngroups)
         for hkey in halo_keys_int:
             halo[hkey] = np.empty(ngroups, dtype=np.int64)
-        group['position'] = np.empty((ngroups, 3))
         group['center_of_mass'] = np.empty((ngroups, 3))
+        group['position_of_most_bound_particle'] = np.empty((ngroups, 3))
         group['position_of_minimum_potential'] = np.empty((ngroups, 3))
-        group['velocity'] = np.empty((ngroups, 3))
         group['velocity_of_center_of_mass'] = np.empty((ngroups, 3))
-        halo['position'] = np.empty((ngroups, 3))
+        group['velocity_of_most_bound_particle'] = np.empty((ngroups, 3))
+        group['velocity_of_minimum_potential'] = np.empty((ngroups, 3))
         halo['center_of_mass'] = np.empty((ngroups, 3))
+        halo['position_of_most_bound_particle'] = np.empty((ngroups, 3))
         halo['position_of_minimum_potential'] = np.empty((ngroups, 3))
-        halo['velocity'] = np.empty((ngroups, 3))
         halo['velocity_of_center_of_mass'] = np.empty((ngroups, 3))
+        halo['velocity_of_most_bound_particle'] = np.empty((ngroups, 3))
+        halo['velocity_of_minimum_potential'] = np.empty((ngroups, 3))
         halo['particle_IDs'] = []
 
         gidx, hidx = 0, 0
@@ -967,30 +966,35 @@ class VelociraptorCatalogue:
             group['R_200mean'][gslice] = cat_props['R_200mean'][()] * self.h
             group['M_200mean'][gslice] = cat_props['Mass_200mean'][()] * self.h
             group['mass'][gslice] = cat_props['Mass_FOF'][()] * self.h
-            posx, posy, posz = \
-                cat_props['Xcmbp'][()] / self.scale_factor, \
-                cat_props['Ycmbp'][()] / self.scale_factor, \
-                cat_props['Zcmbp'][()] / self.scale_factor
-            group['position_of_most_bound_particle'][gslice] = np.vstack(
-                (posx, posy, posz)).T
             cmx, cmy, cmz = \
                 cat_props['Xc'][()] / self.scale_factor, \
                 cat_props['Yc'][()] / self.scale_factor, \
                 cat_props['Zc'][()] / self.scale_factor
             group['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
+            mbpx, mbpy, mbpz = \
+                cat_props['Xcmbp'][()] / self.scale_factor, \
+                cat_props['Ycmbp'][()] / self.scale_factor, \
+                cat_props['Zcmbp'][()] / self.scale_factor
+            group['position_of_most_bound_particle'][gslice] = np.vstack(
+                (mbpx, mbpy, mbpz)).T
             mpx, mpy, mpz = \
                 cat_props['Xcminpot'][()] / self.scale_factor, \
                 cat_props['Ycminpot'][()] / self.scale_factor, \
                 cat_props['Zcminpot'][()] / self.scale_factor
             group['position_of_minimum_potential'][gslice] = np.vstack(
                 (mpx, mpy, mpz)).T
-            velx, vely, velz = cat_props['VXcmbp'][()],\
-                cat_props['VYcmbp'][()], cat_props['VZcmbp'][()]
-            group['velocity'][gslice] = np.vstack((velx, vely, velz)).T
-            velxcm, velycm, velzcm = cat_props['VXc'][()],\
+            velcmx, velcmy, velcmz = cat_props['VXc'][()], \
                 cat_props['VYc'][()], cat_props['VZc'][()]
             group['velocity_of_center_of_mass'][gslice] = np.vstack(
-                (velxcm, velycm, velzcm)).T
+                (velcmx, velcmy, velcmz)).T
+            velmbpx, velmbpy, velmbpz = cat_props['VXcmbp'][()], \
+                cat_props['VYcmbp'][()], cat_props['VZcmbp'][()]
+            group['velocity_of_most_bound_particle'][gslice] = np.vstack(
+                (velmbpx, velmbpy, velmbpz)).T
+            velmpx, velmpy, velmpz = cat_props['VXcminpot'][()], \
+                cat_props['VYcminpot'][()], cat_props['VZcminpot'][()]
+            group['velocity_of_minimum_potential'][gslice] = np.vstack(
+                (velmpx, velmpy, velmpz)).T
 
             np.seterr(divide='ignore', invalid='ignore')
             V_200 = np.sqrt(self.gravitational_constant * M_200 / R_200)
@@ -1003,12 +1007,16 @@ class VelociraptorCatalogue:
             halo['ID_most_bound'][gslice] = cat_props['ID_mbp'][()]
             halo['mass'][gslice] = cat_props['Mass_tot'][()] * self.h
             halo['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
-            halo['position'][gslice] = np.vstack((posx, posy, posz)).T
+            halo['position_of_most_bound_particle'][gslice] = np.vstack(
+                (mbpx, mbpy, mbpz)).T
             halo['position_of_minimum_potential'][gslice] = np.vstack(
                 (mpx, mpy, mpz)).T
-            halo['velocity'][gslice] = np.vstack((velx, vely, velz)).T
             halo['velocity_of_center_of_mass'][gslice] = np.vstack(
-                (velxcm, velycm, velzcm)).T
+                (velcmx, velcmy, velcmz)).T
+            halo['velocity_of_most_bound_particle'][gslice] = np.vstack(
+                (velmbpx, velmbpy, velmbpz)).T
+            halo['velocity_of_minimum_potential'][gslice] = np.vstack(
+                (velmpx, velmpy, velmpz)).T
             halo['halfmass_radius'][gslice] = cat_props['R_HalfMass'][()] * \
                 self.h
 
@@ -1020,7 +1028,7 @@ class VelociraptorCatalogue:
 class AHFCatalogue:
 
     def __init__(self, path, catalogue_filename, snapshot_number,
-                 particle_type, load_particles=False, verbose=True):
+                 particle_type, load_particle_ids=False, verbose=True):
 
         self.catalogue_path = path
         self.catalogue_filename = catalogue_filename
@@ -1036,7 +1044,7 @@ class AHFCatalogue:
                 print('Found {} halo catalogue file(s) for snapshot {} in '
                       'directory {}'.format(ncat, snapshot_number, path))
                 start = time.time()
-            self.halo = self.read_halos(catalogue_files, load_particles)
+            self.halo = self.read_halos(catalogue_files, load_particle_ids)
             if verbose:
                 print("...Loaded in {} seconds\n".format(
                     round(time.time() - start, 4)))
@@ -1044,7 +1052,7 @@ class AHFCatalogue:
             self.has_cat = False
             warnings.warn('No catalogue files found!')
 
-    def read_halos(self, filenames, load_particles):
+    def read_halos(self, filenames, load_particle_ids):
 
         halo = {}
 
@@ -1094,7 +1102,7 @@ class AHFCatalogue:
             halo['center_of_mass_offset'][sl] = data[:, 13]
             halo['angular_momentum'][sl] = data[:, 19:22]
 
-            if load_particles:
+            if load_particle_ids:
                 filename = filename.replace('halos', 'particles')
                 particle_ids = np.loadtxt(filename, dtype=np.uint64,
                                           skiprows=1, usecols=0)
