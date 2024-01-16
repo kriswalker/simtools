@@ -280,9 +280,8 @@ class GadgetSnapshot(GadgetBox):
 
         def read_binary_snapshot(fnames):
 
-            snap = open(fnames[0], 'rb')
-
-            self.read_parameters(snap, self.snapshot_format)
+            with open(fnames[0], 'rb') as snap:
+                self.read_parameters(snap, self.snapshot_format)
 
             if self.number_of_particles_by_type[self.particle_type] == 0:
                 self.ids = np.array([])
@@ -307,103 +306,103 @@ class GadgetSnapshot(GadgetBox):
 
             for f in fnames:
 
-                snap = open(f, 'rb')
+                with open(f, 'rb') as snap:
 
-                self.read_parameters(snap, self.snapshot_format)
+                    self.read_parameters(snap, self.snapshot_format)
 
-                npart_total = np.sum(
-                    self.number_of_particles_this_file_by_type)
-                npart = self.number_of_particles_this_file_by_type[
-                    self.particle_type]
-                ptype_offset = np.sum(np.array(
-                    self.number_of_particles_this_file_by_type[
-                        :self.particle_type + 1])) - npart
+                    npart_total = np.sum(
+                        self.number_of_particles_this_file_by_type)
+                    npart = self.number_of_particles_this_file_by_type[
+                        self.particle_type]
+                    ptype_offset = np.sum(np.array(
+                        self.number_of_particles_this_file_by_type[
+                            :self.particle_type + 1])) - npart
 
-                if npart == 0:
-                    continue
+                    if npart == 0:
+                        continue
 
-                npart_by_type_in_mass_block = \
-                    self.number_of_particles_this_file_by_type[idx_with_mass]
-                npart_total_in_mass_block = np.sum(
-                    npart_by_type_in_mass_block)
-                if not masses_from_table:
-                    ptype_ind_in_mass_block = np.where(
-                        idx_with_mass == self.particle_type)[0][0]
-                    ptype_offset_in_mass_block = np.sum(np.array(
-                        npart_by_type_in_mass_block[
-                            :ptype_ind_in_mass_block + 1])) - npart
+                    npart_by_type_in_mass_block = \
+                        self.number_of_particles_this_file_by_type[idx_with_mass]
+                    npart_total_in_mass_block = np.sum(
+                        npart_by_type_in_mass_block)
+                    if not masses_from_table:
+                        ptype_ind_in_mass_block = np.where(
+                            idx_with_mass == self.particle_type)[0][0]
+                        ptype_offset_in_mass_block = np.sum(np.array(
+                            npart_by_type_in_mass_block[
+                                :ptype_ind_in_mass_block + 1])) - npart
 
-                offset = 264  # includes 2 x 4 byte buffers
-                offset += 16
-                offset += 4  # 1st 4 byte buffer
-                offset += 16
-                offset += 3 * ptype_offset * 4
-                snap.seek(offset, os.SEEK_SET)
-                coords = np.fromfile(
-                    snap, dtype=np.float32, count=3 * npart).reshape(
-                    npart, 3)
-                coords_all.append(coords)
-                offset -= 3 * ptype_offset * 4
-
-                # Increment beyond the POS block
-                offset += 3 * npart_total * 4
-                offset += 4  # 2nd 4 byte buffer
-                offset += 4  # 1st 4 byte buffer
-                offset += 16
-                offset += 3 * ptype_offset * 4
-                snap.seek(offset, os.SEEK_SET)
-                vels = np.fromfile(
-                    snap, dtype=np.float32, count=3 * npart).reshape(
-                    npart, 3)
-                vels_all.append(vels)
-                offset -= 3 * ptype_offset * 4
-
-                # Increment beyond the VEL block
-                offset += 3 * npart_total * 4
-                offset += 4  # 2nd 4 byte buffer
-                offset += 4  # 1st 4 byte buffer
-                offset += 16
-                offset += ptype_offset * 4
-                snap.seek(offset, os.SEEK_SET)
-                ids = np.fromfile(snap, dtype=np.uint32, count=npart)
-                ids_all.append(ids)
-                offset -= ptype_offset * 4
-
-                # Increment beyond the IDS block
-                offset += npart_total * 4
-                offset += 4  # 2nd 4 byte buffer
-                offset += 4  # 1st 4 byte buffer
-                offset += 16
-                if not masses_from_table:
-                    offset += ptype_offset_in_mass_block * 4
+                    offset = 264  # includes 2 x 4 byte buffers
+                    offset += 16
+                    offset += 4  # 1st 4 byte buffer
+                    offset += 16
+                    offset += 3 * ptype_offset * 4
                     snap.seek(offset, os.SEEK_SET)
-                    masses = np.fromfile(
-                        snap, dtype=np.float32, count=npart)
-                    masses_all.append(masses)
-                    offset -= ptype_offset_in_mass_block * 4
+                    coords = np.fromfile(
+                        snap, dtype=np.float32, count=3 * npart).reshape(
+                        npart, 3)
+                    coords_all.append(coords)
+                    offset -= 3 * ptype_offset * 4
 
-                if self.particle_type == 0:
-                    # Increment beyond the mass block
-                    offset += npart_total_in_mass_block * 4
+                    # Increment beyond the POS block
+                    offset += 3 * npart_total * 4
+                    offset += 4  # 2nd 4 byte buffer
+                    offset += 4  # 1st 4 byte buffer
+                    offset += 16
+                    offset += 3 * ptype_offset * 4
+                    snap.seek(offset, os.SEEK_SET)
+                    vels = np.fromfile(
+                        snap, dtype=np.float32, count=3 * npart).reshape(
+                        npart, 3)
+                    vels_all.append(vels)
+                    offset -= 3 * ptype_offset * 4
+
+                    # Increment beyond the VEL block
+                    offset += 3 * npart_total * 4
                     offset += 4  # 2nd 4 byte buffer
                     offset += 4  # 1st 4 byte buffer
                     offset += 16
                     offset += ptype_offset * 4
                     snap.seek(offset, os.SEEK_SET)
-                    u = np.fromfile(snap, dtype=np.float32, count=npart)
-                    us_all.append(u)
+                    ids = np.fromfile(snap, dtype=np.uint32, count=npart)
+                    ids_all.append(ids)
                     offset -= ptype_offset * 4
 
-                    # Increment beyond the u block
+                    # Increment beyond the IDS block
                     offset += npart_total * 4
                     offset += 4  # 2nd 4 byte buffer
                     offset += 4  # 1st 4 byte buffer
                     offset += 16
-                    offset += ptype_offset * 4
-                    snap.seek(offset, os.SEEK_SET)
-                    rho = np.fromfile(snap, dtype=np.float32, count=npart)
-                    rhos_all.append(rho)
-                    offset -= ptype_offset * 4
+                    if not masses_from_table:
+                        offset += ptype_offset_in_mass_block * 4
+                        snap.seek(offset, os.SEEK_SET)
+                        masses = np.fromfile(
+                            snap, dtype=np.float32, count=npart)
+                        masses_all.append(masses)
+                        offset -= ptype_offset_in_mass_block * 4
+
+                    if self.particle_type == 0:
+                        # Increment beyond the mass block
+                        offset += npart_total_in_mass_block * 4
+                        offset += 4  # 2nd 4 byte buffer
+                        offset += 4  # 1st 4 byte buffer
+                        offset += 16
+                        offset += ptype_offset * 4
+                        snap.seek(offset, os.SEEK_SET)
+                        u = np.fromfile(snap, dtype=np.float32, count=npart)
+                        us_all.append(u)
+                        offset -= ptype_offset * 4
+
+                        # Increment beyond the u block
+                        offset += npart_total * 4
+                        offset += 4  # 2nd 4 byte buffer
+                        offset += 4  # 1st 4 byte buffer
+                        offset += 16
+                        offset += ptype_offset * 4
+                        snap.seek(offset, os.SEEK_SET)
+                        rho = np.fromfile(snap, dtype=np.float32, count=npart)
+                        rhos_all.append(rho)
+                        offset -= ptype_offset * 4
 
             if region_positions is not None:
                 coords = np.concatenate(coords_all)
@@ -443,125 +442,120 @@ class GadgetSnapshot(GadgetBox):
 
             self.velocities *= np.sqrt(1 + self.redshift)
 
-            snap.close()
-
         def read_hdf5_snapshot(fnames):
 
-            snap = h5py.File(fnames[0], 'r')
-
-            self.read_parameters(snap, self.snapshot_format)
+            with h5py.File(fnames[0], 'r') as snap0:
+                self.read_parameters(snap0, self.snapshot_format)
 
             def read_files(ii):
 
                 f = fnames[ii]
-                snap = h5py.File(f, 'r')
-                snappt = snap['PartType{}'.format(self.particle_type)]
+                with h5py.File(f, 'r') as snap:
+                    snappt = snap['PartType{}'.format(self.particle_type)]
 
-                if region_positions is not None:
-                    coords = snappt['Coordinates'][()]
-                    if self.use_kdtree:
-                        kdtree = KDTree(
-                            coords, boxsize=self.box_size*(1 + self.buffer))
-                        cutout_inds = kdtree.query_ball_point(
-                            region_positions, region_radii)
-                    else:
-                        cutout_inds = []
-                        for pos, rad in zip(region_positions, region_radii):
-                            r = vector_norm(coords - pos)
-                            cutout_inds.append(np.argwhere(r < rad).flatten())
-                    region_lens = [len(inds) for inds in cutout_inds]
-                    cutout_inds = np.hstack(cutout_inds).astype(int)
-                    if len(cutout_inds) == 0:
-                        nc = len(region_positions)
-                        return [np.array([], dtype=np.uint64)]*nc, \
-                            [np.array([]).reshape(0, 3)]*nc, \
-                            [np.array([]).reshape(0, 3)]*nc, \
-                            [np.array([])]*nc
-                    coords = coords[cutout_inds]
-                    coords = np.split(coords, np.cumsum(region_lens))[:-1]
-                else:
-                    cutout_inds = None
-
-                if load_ids:
-                    if cutout_inds is None:
-                        ids = snappt['ParticleIDs'][()]
-                    else:
-                        if read_mode == 1:
-                            ids = snappt['ParticleIDs'][()]
-                        elif read_mode == 2:
-                            ids = snappt['ParticleIDs']
-                        ids = ids[cutout_inds]
-                        ids = np.split(ids, np.cumsum(region_lens))[:-1]
-                else:
-                    ids = None
-
-                if load_coords:
-                    if cutout_inds is None:
+                    if region_positions is not None:
                         coords = snappt['Coordinates'][()]
-                else:
-                    coords = None
-
-                if load_vels:
-                    if cutout_inds is None:
-                        vels = snappt['Velocities'][()]
+                        if self.use_kdtree:
+                            kdtree = KDTree(
+                                coords, boxsize=self.box_size*(1 + self.buffer))
+                            cutout_inds = kdtree.query_ball_point(
+                                region_positions, region_radii)
+                        else:
+                            cutout_inds = []
+                            for pos, rad in zip(region_positions, region_radii):
+                                r = vector_norm(coords - pos)
+                                cutout_inds.append(np.argwhere(r < rad).flatten())
+                        region_lens = [len(inds) for inds in cutout_inds]
+                        cutout_inds = np.hstack(cutout_inds).astype(int)
+                        if len(cutout_inds) == 0:
+                            nc = len(region_positions)
+                            return [np.array([], dtype=np.uint64)]*nc, \
+                                [np.array([]).reshape(0, 3)]*nc, \
+                                [np.array([]).reshape(0, 3)]*nc, \
+                                [np.array([])]*nc
+                        coords = coords[cutout_inds]
+                        coords = np.split(coords, np.cumsum(region_lens))[:-1]
                     else:
-                        if read_mode == 1:
-                            vels = snappt['Velocities'][()]
-                        elif read_mode == 2:
-                            vels = snappt['Velocities']
-                        vels = vels[cutout_inds]
-                        vels = np.split(vels, np.cumsum(region_lens))[:-1]
-                else:
-                    vels = None
+                        cutout_inds = None
 
-                if load_masses:
-                    if 'Masses' in list(snappt):
+                    if load_ids:
                         if cutout_inds is None:
-                            masses = snappt['Masses'][()]
+                            ids = snappt['ParticleIDs'][()]
                         else:
                             if read_mode == 1:
-                                masses = snappt['Masses'][()]
+                                ids = snappt['ParticleIDs'][()]
                             elif read_mode == 2:
-                                masses = snappt['Masses']
-                            masses = masses[cutout_inds]
-                            masses = np.split(
-                                masses, np.cumsum(region_lens))[:-1]
+                                ids = snappt['ParticleIDs']
+                            ids = ids[cutout_inds]
+                            ids = np.split(ids, np.cumsum(region_lens))[:-1]
                     else:
-                        masses = (snap['Header'].attrs['MassTable'])[
-                            self.particle_type]
-                else:
-                    masses = None
+                        ids = None
 
-                if 'Metallicity' in list(snappt):
-                    if cutout_inds is None:
-                        metallicities = snappt['Metallicity'][()]
+                    if load_coords:
+                        if cutout_inds is None:
+                            coords = snappt['Coordinates'][()]
                     else:
-                        if read_mode == 1:
+                        coords = None
+
+                    if load_vels:
+                        if cutout_inds is None:
+                            vels = snappt['Velocities'][()]
+                        else:
+                            if read_mode == 1:
+                                vels = snappt['Velocities'][()]
+                            elif read_mode == 2:
+                                vels = snappt['Velocities']
+                            vels = vels[cutout_inds]
+                            vels = np.split(vels, np.cumsum(region_lens))[:-1]
+                    else:
+                        vels = None
+
+                    if load_masses:
+                        if 'Masses' in list(snappt):
+                            if cutout_inds is None:
+                                masses = snappt['Masses'][()]
+                            else:
+                                if read_mode == 1:
+                                    masses = snappt['Masses'][()]
+                                elif read_mode == 2:
+                                    masses = snappt['Masses']
+                                masses = masses[cutout_inds]
+                                masses = np.split(
+                                    masses, np.cumsum(region_lens))[:-1]
+                        else:
+                            masses = (snap['Header'].attrs['MassTable'])[
+                                self.particle_type]
+                    else:
+                        masses = None
+
+                    if 'Metallicity' in list(snappt):
+                        if cutout_inds is None:
                             metallicities = snappt['Metallicity'][()]
-                        elif read_mode == 2:
-                            metallicities = snappt['Metallicity']
-                        metallicities = metallicities[cutout_inds]
-                        metallicities = np.split(
-                            metallicities, np.cumsum(region_lens))[:-1]
-                else:
-                    metallicities = None
-
-                if 'StellarFormationTime' in list(snappt):
-                    if cutout_inds is None:
-                        formation_times = snappt['StellarFormationTime'][()]
+                        else:
+                            if read_mode == 1:
+                                metallicities = snappt['Metallicity'][()]
+                            elif read_mode == 2:
+                                metallicities = snappt['Metallicity']
+                            metallicities = metallicities[cutout_inds]
+                            metallicities = np.split(
+                                metallicities, np.cumsum(region_lens))[:-1]
                     else:
-                        if read_mode == 1:
-                            formation_times = snappt['StellarFormationTime'][
-                                ()]
-                        elif read_mode == 2:
-                            formation_times = snappt['StellarFormationTime']
-                        formation_times = formation_times[cutout_inds]
-                        formation_times = np.split(
-                            formation_times, np.cumsum(region_lens))[:-1]
-                else:
-                    formation_times = None
+                        metallicities = None
 
-                snap.close()
+                    if 'StellarFormationTime' in list(snappt):
+                        if cutout_inds is None:
+                            formation_times = snappt['StellarFormationTime'][()]
+                        else:
+                            if read_mode == 1:
+                                formation_times = snappt['StellarFormationTime'][
+                                    ()]
+                            elif read_mode == 2:
+                                formation_times = snappt['StellarFormationTime']
+                            formation_times = formation_times[cutout_inds]
+                            formation_times = np.split(
+                                formation_times, np.cumsum(region_lens))[:-1]
+                    else:
+                        formation_times = None
 
                 return ids, coords, vels, masses, metallicities, \
                     formation_times
@@ -606,8 +600,6 @@ class GadgetSnapshot(GadgetBox):
             if snapdata[0][5] is not None:
                 self.formation_times, region_offsets = stack(5)
             self.region_offsets = region_offsets
-
-            snap.close()
 
         if self.snapshot_format == 3:
             read_hdf5_snapshot(filenames)
@@ -662,14 +654,14 @@ class GadgetCatalogue(GadgetBox):
 
     def read_halos(self, filenames):
 
+        with h5py.File(filenames[0], 'r') as halo_cat:
+            if not hasattr(self, 'redshift'):
+                self.read_parameters(halo_cat, self.catalogue_format)
+            self.number_of_groups = halo_cat['Header'].attrs['Ngroups_Total']
+            self.number_of_halos = halo_cat['Header'].attrs['Nsubhalos_Total']
+
         group = {}
         halo = {}
-
-        halo_cat = h5py.File(filenames[0], 'r')
-        if not hasattr(self, 'redshift'):
-            self.read_parameters(halo_cat, self.catalogue_format)
-        self.number_of_groups = halo_cat['Header'].attrs['Ngroups_Total']
-        self.number_of_halos = halo_cat['Header'].attrs['Nsubhalos_Total']
 
         group_keys_float = ['R_200crit', 'R_500crit', 'M_200crit', 'M_500crit',
                             'V_200crit', 'V_500crit', 'A_200crit', 'A_500crit',
@@ -701,86 +693,85 @@ class GadgetCatalogue(GadgetBox):
 
         gidx, hidx = 0, 0
         for filename in filenames:
-            halo_cat = h5py.File(filename, 'r')
 
-            ngroups = int(halo_cat['Header'].attrs['Ngroups_ThisFile'])
-            nhalos = int(halo_cat['Header'].attrs['Nsubhalos_ThisFile'])
-            gslice = slice(gidx, gidx + ngroups)
-            gidx += ngroups
-            hslice = slice(hidx, hidx + nhalos)
-            hidx += nhalos
+            with h5py.File(filename, 'r') as halo_cat:
 
-            if ngroups == 0:
-                continue
+                ngroups = int(halo_cat['Header'].attrs['Ngroups_ThisFile'])
+                nhalos = int(halo_cat['Header'].attrs['Nsubhalos_ThisFile'])
+                gslice = slice(gidx, gidx + ngroups)
+                gidx += ngroups
+                hslice = slice(hidx, hidx + nhalos)
+                hidx += nhalos
 
-            config_options = list(halo_cat['Config'].attrs)
+                if ngroups == 0:
+                    continue
 
-            group['mass'][gslice] = halo_cat['Group']['GroupMassType'][()][
-                :, self.particle_type]
-            group['position_of_minimum_potential'][gslice] = halo_cat[
-                'Group']['GroupPos'][()]
-            if 'GroupCM' in list(halo_cat['Group'].keys()):
-                group['center_of_mass'][gslice] = halo_cat['Group'][
-                    'GroupCM'][()]
-            else:
-                group['center_of_mass'][gslice] = np.nan
-            group['velocity'][gslice] = halo_cat['Group']['GroupVel'][()] / \
-                self.scale_factor**2
-            group['number_of_particles'][gslice] = halo_cat['Group'][
-                'GroupLenType'][()][:, self.particle_type]
-            group['offset'][gslice] = halo_cat['Group']['GroupOffsetType'][()][
-                :, self.particle_type]
+                config_options = list(halo_cat['Config'].attrs)
 
-            for ref in [('Crit', 'crit'), ('Mean', 'mean'),
-                        ('TopHat', 'tophat')]:
-                R_200 = halo_cat['Group']['Group_R_{}200'.format(ref[0])][()]
-                M_200 = halo_cat['Group']['Group_M_{}200'.format(ref[0])][()]
-                group['R_200{}'.format(ref[1])][gslice] = R_200
-                group['M_200{}'.format(ref[1])][gslice] = M_200
+                group['mass'][gslice] = halo_cat['Group']['GroupMassType'][()][
+                    :, self.particle_type]
+                group['position_of_minimum_potential'][gslice] = halo_cat[
+                    'Group']['GroupPos'][()]
+                if 'GroupCM' in list(halo_cat['Group'].keys()):
+                    group['center_of_mass'][gslice] = halo_cat['Group'][
+                        'GroupCM'][()]
+                else:
+                    group['center_of_mass'][gslice] = np.nan
+                group['velocity'][gslice] = halo_cat['Group']['GroupVel'][()] / \
+                    self.scale_factor**2
+                group['number_of_particles'][gslice] = halo_cat['Group'][
+                    'GroupLenType'][()][:, self.particle_type]
+                group['offset'][gslice] = halo_cat['Group']['GroupOffsetType'][()][
+                    :, self.particle_type]
 
-                np.seterr(divide='ignore', invalid='ignore')
-                V_200 = np.sqrt(self.gravitational_constant * M_200 / R_200)
-                group['V_200{}'.format(ref[1])][gslice] = V_200
-                group['A_200{}'.format(ref[1])][gslice] = V_200**2 / R_200
-                np.seterr(divide='warn', invalid='warn')
+                for ref in [('Crit', 'crit'), ('Mean', 'mean'),
+                            ('TopHat', 'tophat')]:
+                    R_200 = halo_cat['Group']['Group_R_{}200'.format(ref[0])][()]
+                    M_200 = halo_cat['Group']['Group_M_{}200'.format(ref[0])][()]
+                    group['R_200{}'.format(ref[1])][gslice] = R_200
+                    group['M_200{}'.format(ref[1])][gslice] = M_200
 
-            R_500 = halo_cat['Group']['Group_R_Crit500'][()]
-            M_500 = halo_cat['Group']['Group_M_Crit500'][()]
-            group['R_500crit'][gslice] = R_500
-            group['M_500crit'][gslice] = M_500
-            V_500 = np.sqrt(self.gravitational_constant * M_500 / R_500)
-            group['V_500crit'][gslice] = V_500
-            group['A_500crit'][gslice] = V_500 ** 2 / R_500
+                    np.seterr(divide='ignore', invalid='ignore')
+                    V_200 = np.sqrt(self.gravitational_constant * M_200 / R_200)
+                    group['V_200{}'.format(ref[1])][gslice] = V_200
+                    group['A_200{}'.format(ref[1])][gslice] = V_200**2 / R_200
+                    np.seterr(divide='warn', invalid='warn')
 
-            if 'SUBFIND' or 'SUBFIND_HBT' in config_options:
+                R_500 = halo_cat['Group']['Group_R_Crit500'][()]
+                M_500 = halo_cat['Group']['Group_M_Crit500'][()]
+                group['R_500crit'][gslice] = R_500
+                group['M_500crit'][gslice] = M_500
+                V_500 = np.sqrt(self.gravitational_constant * M_500 / R_500)
+                group['V_500crit'][gslice] = V_500
+                group['A_500crit'][gslice] = V_500 ** 2 / R_500
 
-                group['first_subhalo'][gslice] = halo_cat['Group'][
-                    'GroupFirstSub'][()]
-                group['number_of_subhalos'][gslice] = halo_cat['Group'][
-                    'GroupNsubs'][()]
+                if 'SUBFIND' or 'SUBFIND_HBT' in config_options:
 
-                halo['mass'][hslice] = halo_cat[
-                    'Subhalo']['SubhaloMassType'][()][:, self.particle_type]
-                halo['center_of_mass'][hslice] = halo_cat['Subhalo'][
-                    'SubhaloCM'][()]
-                halo['position_of_minimum_potential'][hslice] = halo_cat[
-                    'Subhalo']['SubhaloPos'][()]
-                halo['velocity'][hslice] = halo_cat['Subhalo'][
-                    'SubhaloVel'][()] / self.scale_factor
-                halo['halfmass_radius'][hslice] = halo_cat['Subhalo'][
-                    'SubhaloHalfmassRadType'][()][:, self.particle_type]
-                halo['number_of_particles'][hslice] = halo_cat[
-                    'Subhalo']['SubhaloLenType'][()][:, self.particle_type]
-                halo['offset'][hslice] = halo_cat[
-                    'Subhalo']['SubhaloOffsetType'][()][:, self.particle_type]
-                halo['ID_most_bound'][hslice] = halo_cat['Subhalo'][
-                    'SubhaloIDMostbound'][()]
-                halo['group_number'][hslice] = halo_cat['Subhalo'][
-                    'SubhaloGroupNr'][()]
-                halo['rank_in_group'][hslice] = halo_cat['Subhalo'][
-                    'SubhaloRankInGr'][()]
+                    group['first_subhalo'][gslice] = halo_cat['Group'][
+                        'GroupFirstSub'][()]
+                    group['number_of_subhalos'][gslice] = halo_cat['Group'][
+                        'GroupNsubs'][()]
 
-            halo_cat.close()
+                    halo['mass'][hslice] = halo_cat[
+                        'Subhalo']['SubhaloMassType'][()][:, self.particle_type]
+                    halo['center_of_mass'][hslice] = halo_cat['Subhalo'][
+                        'SubhaloCM'][()]
+                    halo['position_of_minimum_potential'][hslice] = halo_cat[
+                        'Subhalo']['SubhaloPos'][()]
+                    halo['velocity'][hslice] = halo_cat['Subhalo'][
+                        'SubhaloVel'][()] / self.scale_factor
+                    halo['halfmass_radius'][hslice] = halo_cat['Subhalo'][
+                        'SubhaloHalfmassRadType'][()][:, self.particle_type]
+                    halo['number_of_particles'][hslice] = halo_cat[
+                        'Subhalo']['SubhaloLenType'][()][:, self.particle_type]
+                    halo['offset'][hslice] = halo_cat[
+                        'Subhalo']['SubhaloOffsetType'][()][:, self.particle_type]
+                    halo['ID_most_bound'][hslice] = halo_cat['Subhalo'][
+                        'SubhaloIDMostbound'][()]
+                    halo['group_number'][hslice] = halo_cat['Subhalo'][
+                        'SubhaloGroupNr'][()]
+                    halo['rank_in_group'][hslice] = halo_cat['Subhalo'][
+                        'SubhaloRankInGr'][()]
 
         if np.all(np.isnan(group['center_of_mass'].flatten())):
             group['center_of_mass'] = None
@@ -832,12 +823,12 @@ class VelociraptorCatalogue:
         for fext in ['siminfo', 'units']:
             fname = glob.glob(self.catalogue_path + '/*{}*{}'.format(
                 self.snapshot_number, fext))[0]
-            fdata = open(fname, 'r')
             data = []
-            for line in fdata:
-                s = line.split()
-                if len(s) > 2:
-                    data.append([s[0], s[2]])
+            with open(fname, 'r') as fdata:
+                for line in fdata:
+                    s = line.split()
+                    if len(s) > 2:
+                        data.append([s[0], s[2]])
             param_data.append(data)
 
         siminfo, units = param_data
@@ -875,12 +866,12 @@ class VelociraptorCatalogue:
         halo = {}
 
         catfile = catalogue_files[0]
-        halo_cat = h5py.File(catfile, 'r')
-        ngroups = halo_cat['Total_num_of_groups'][()][0]
+        with h5py.File(catfile, 'r') as halo_cat:
+            ngroups = halo_cat['Total_num_of_groups'][()][0]
 
         group_keys_float = ['R_200crit', 'R_200mean', 'M_200crit', 'M_200mean',
-                            'V_200crit', 'V_200mean', 'A_200crit',
-                            'A_200mean', 'mass']
+                            'V_200crit', 'V_200mean', 'A_200crit', 'A_200mean',
+                            'mass']
         group_keys_int = ['group_ID', 'number_of_particles', 'first_subhalo',
                           'number_of_subhalos']
         halo_keys_float = ['mass', 'halfmass_radius']
@@ -911,116 +902,111 @@ class VelociraptorCatalogue:
 
         gidx, hidx = 0, 0
         for catfile in catalogue_files:
-            cat_groups = h5py.File(catfile, 'r')
 
-            ngroups = int(cat_groups['Num_of_groups'][()][0])
-            gslice = slice(gidx, gidx + ngroups)
-            gidx += ngroups
+            with h5py.File(catfile, 'r') as cat_groups:
 
-            group['number_of_particles'][gslice] = cat_groups['Group_Size'][()]
-            group['number_of_subhalos'][gslice] = cat_groups[
-                'Number_of_substructures_in_halo'][()]
+                ngroups = int(cat_groups['Num_of_groups'][()][0])
+                gslice = slice(gidx, gidx + ngroups)
+                gidx += ngroups
 
-            hoffset = cat_groups['Offset'][()]
-            halo['offset'][gslice] = hoffset
+                group['number_of_particles'][gslice] = cat_groups['Group_Size'][()]
+                group['number_of_subhalos'][gslice] = cat_groups[
+                    'Number_of_substructures_in_halo'][()]
 
-            parents = cat_groups['Parent_halo_ID'][()]
-            halo['parent_halo_ID'][gslice] = parents
-            rankingrp = np.zeros(len(parents), dtype=np.int32)
-            counts = np.unique(parents[parents > -1], return_counts=True)[1]
-            rankidx = len(np.argwhere(parents == -1))
-            for k, c in enumerate(counts):
-                rankingrp[rankidx:rankidx+c] = np.arange(1, c+1)
-                rankidx += c
-            halo['rank_in_group'][gslice] = rankingrp
+                hoffset = cat_groups['Offset'][()]
+                halo['offset'][gslice] = hoffset
 
-            cat_groups.close()
+                parents = cat_groups['Parent_halo_ID'][()]
+                halo['parent_halo_ID'][gslice] = parents
+                rankingrp = np.zeros(len(parents), dtype=np.int32)
+                counts = np.unique(parents[parents > -1], return_counts=True)[1]
+                rankidx = len(np.argwhere(parents == -1))
+                for k, c in enumerate(counts):
+                    rankingrp[rankidx:rankidx+c] = np.arange(1, c+1)
+                    rankidx += c
+                halo['rank_in_group'][gslice] = rankingrp
 
             catfile_particles = catfile.replace(
                 'catalog_groups', 'catalog_particles')
-            cat_part = h5py.File(catfile_particles, 'r')
-            npart = cat_part['Num_of_particles_in_groups'][()][0]
-            if len(hoffset) == 1:
-                halo['number_of_particles'][gslice] = np.array([npart])
-            else:
-                hlen = hoffset[1:] - hoffset[:-1]
-                halo['number_of_particles'][gslice] = np.append(
-                    hlen, npart - hoffset[-1])
-            for pids in np.split(cat_part['Particle_IDs'],
-                                 np.append(hoffset[1:], npart))[:-1]:
-                halo['particle_IDs'].append(pids)
-
-            cat_part.close()
+            with h5py.File(catfile_particles, 'r') as cat_part:
+                npart = cat_part['Num_of_particles_in_groups'][()][0]
+                if len(hoffset) == 1:
+                    halo['number_of_particles'][gslice] = np.array([npart])
+                else:
+                    hlen = hoffset[1:] - hoffset[:-1]
+                    halo['number_of_particles'][gslice] = np.append(
+                        hlen, npart - hoffset[-1])
+                for pids in np.split(cat_part['Particle_IDs'],
+                                     np.append(hoffset[1:], npart))[:-1]:
+                    halo['particle_IDs'].append(pids)
 
             catfile_props = catfile.replace(
                 'catalog_groups', 'properties')
-            cat_props = h5py.File(catfile_props, 'r')
-            groupids = cat_props['ID'][()]
-            group['group_ID'][gslice] = groupids
-            group['first_subhalo'][gslice] = groupids
-            self.snapshot_number = int(groupids[0] / self.thidv)
-            R_200 = cat_props['R_200crit'][()] * self.h
-            M_200 = cat_props['Mass_200crit'][()] * self.h
-            group['R_200crit'][gslice] = R_200
-            group['M_200crit'][gslice] = M_200
-            group['R_200mean'][gslice] = cat_props['R_200mean'][()] * self.h
-            group['M_200mean'][gslice] = cat_props['Mass_200mean'][()] * self.h
-            group['mass'][gslice] = cat_props['Mass_FOF'][()] * self.h
-            cmx, cmy, cmz = \
-                cat_props['Xc'][()] / self.scale_factor, \
-                cat_props['Yc'][()] / self.scale_factor, \
-                cat_props['Zc'][()] / self.scale_factor
-            group['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
-            mbpx, mbpy, mbpz = \
-                cat_props['Xcmbp'][()] / self.scale_factor, \
-                cat_props['Ycmbp'][()] / self.scale_factor, \
-                cat_props['Zcmbp'][()] / self.scale_factor
-            group['position_of_most_bound_particle'][gslice] = np.vstack(
-                (mbpx, mbpy, mbpz)).T
-            mpx, mpy, mpz = \
-                cat_props['Xcminpot'][()] / self.scale_factor, \
-                cat_props['Ycminpot'][()] / self.scale_factor, \
-                cat_props['Zcminpot'][()] / self.scale_factor
-            group['position_of_minimum_potential'][gslice] = np.vstack(
-                (mpx, mpy, mpz)).T
-            velcmx, velcmy, velcmz = cat_props['VXc'][()], \
-                cat_props['VYc'][()], cat_props['VZc'][()]
-            group['velocity_of_center_of_mass'][gslice] = np.vstack(
-                (velcmx, velcmy, velcmz)).T
-            velmbpx, velmbpy, velmbpz = cat_props['VXcmbp'][()], \
-                cat_props['VYcmbp'][()], cat_props['VZcmbp'][()]
-            group['velocity_of_most_bound_particle'][gslice] = np.vstack(
-                (velmbpx, velmbpy, velmbpz)).T
-            velmpx, velmpy, velmpz = cat_props['VXcminpot'][()], \
-                cat_props['VYcminpot'][()], cat_props['VZcminpot'][()]
-            group['velocity_of_minimum_potential'][gslice] = np.vstack(
-                (velmpx, velmpy, velmpz)).T
+            with h5py.File(catfile_props, 'r') as cat_props:
+                groupids = cat_props['ID'][()]
+                group['group_ID'][gslice] = groupids
+                group['first_subhalo'][gslice] = groupids
+                self.snapshot_number = int(groupids[0] / self.thidv)
+                R_200 = cat_props['R_200crit'][()] * self.h
+                M_200 = cat_props['Mass_200crit'][()] * self.h
+                group['R_200crit'][gslice] = R_200
+                group['M_200crit'][gslice] = M_200
+                group['R_200mean'][gslice] = cat_props['R_200mean'][()] * self.h
+                group['M_200mean'][gslice] = cat_props['Mass_200mean'][()] * self.h
+                group['mass'][gslice] = cat_props['Mass_FOF'][()] * self.h
+                cmx, cmy, cmz = \
+                    cat_props['Xc'][()] / self.scale_factor, \
+                    cat_props['Yc'][()] / self.scale_factor, \
+                    cat_props['Zc'][()] / self.scale_factor
+                group['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
+                mbpx, mbpy, mbpz = \
+                    cat_props['Xcmbp'][()] / self.scale_factor, \
+                    cat_props['Ycmbp'][()] / self.scale_factor, \
+                    cat_props['Zcmbp'][()] / self.scale_factor
+                group['position_of_most_bound_particle'][gslice] = np.vstack(
+                    (mbpx, mbpy, mbpz)).T
+                mpx, mpy, mpz = \
+                    cat_props['Xcminpot'][()] / self.scale_factor, \
+                    cat_props['Ycminpot'][()] / self.scale_factor, \
+                    cat_props['Zcminpot'][()] / self.scale_factor
+                group['position_of_minimum_potential'][gslice] = np.vstack(
+                    (mpx, mpy, mpz)).T
+                velcmx, velcmy, velcmz = cat_props['VXc'][()], \
+                    cat_props['VYc'][()], cat_props['VZc'][()]
+                group['velocity_of_center_of_mass'][gslice] = np.vstack(
+                    (velcmx, velcmy, velcmz)).T
+                velmbpx, velmbpy, velmbpz = cat_props['VXcmbp'][()], \
+                    cat_props['VYcmbp'][()], cat_props['VZcmbp'][()]
+                group['velocity_of_most_bound_particle'][gslice] = np.vstack(
+                    (velmbpx, velmbpy, velmbpz)).T
+                velmpx, velmpy, velmpz = cat_props['VXcminpot'][()], \
+                    cat_props['VYcminpot'][()], cat_props['VZcminpot'][()]
+                group['velocity_of_minimum_potential'][gslice] = np.vstack(
+                    (velmpx, velmpy, velmpz)).T
 
-            np.seterr(divide='ignore', invalid='ignore')
-            V_200 = np.sqrt(self.gravitational_constant * M_200 / R_200)
-            group['V_200crit'][gslice] = V_200
-            group['A_200crit'][gslice] = V_200**2 / R_200
+                np.seterr(divide='ignore', invalid='ignore')
+                V_200 = np.sqrt(self.gravitational_constant * M_200 / R_200)
+                group['V_200crit'][gslice] = V_200
+                group['A_200crit'][gslice] = V_200**2 / R_200
 
-            haloids = groupids
-            halo['halo_ID'][gslice] = haloids
-            halo['group_ID'][gslice] = haloids
-            halo['ID_most_bound'][gslice] = cat_props['ID_mbp'][()]
-            halo['mass'][gslice] = cat_props['Mass_tot'][()] * self.h
-            halo['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
-            halo['position_of_most_bound_particle'][gslice] = np.vstack(
-                (mbpx, mbpy, mbpz)).T
-            halo['position_of_minimum_potential'][gslice] = np.vstack(
-                (mpx, mpy, mpz)).T
-            halo['velocity_of_center_of_mass'][gslice] = np.vstack(
-                (velcmx, velcmy, velcmz)).T
-            halo['velocity_of_most_bound_particle'][gslice] = np.vstack(
-                (velmbpx, velmbpy, velmbpz)).T
-            halo['velocity_of_minimum_potential'][gslice] = np.vstack(
-                (velmpx, velmpy, velmpz)).T
-            halo['halfmass_radius'][gslice] = cat_props['R_HalfMass'][()] * \
-                self.h
-
-            cat_props.close()
+                haloids = groupids
+                halo['halo_ID'][gslice] = haloids
+                halo['group_ID'][gslice] = haloids
+                halo['ID_most_bound'][gslice] = cat_props['ID_mbp'][()]
+                halo['mass'][gslice] = cat_props['Mass_tot'][()] * self.h
+                halo['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
+                halo['position_of_most_bound_particle'][gslice] = np.vstack(
+                    (mbpx, mbpy, mbpz)).T
+                halo['position_of_minimum_potential'][gslice] = np.vstack(
+                    (mpx, mpy, mpz)).T
+                halo['velocity_of_center_of_mass'][gslice] = np.vstack(
+                    (velcmx, velcmy, velcmz)).T
+                halo['velocity_of_most_bound_particle'][gslice] = np.vstack(
+                    (velmbpx, velmbpy, velmbpz)).T
+                halo['velocity_of_minimum_potential'][gslice] = np.vstack(
+                    (velmpx, velmpy, velmpz)).T
+                halo['halfmass_radius'][gslice] = cat_props['R_HalfMass'][()] * \
+                    self.h
 
         return group, halo
 
