@@ -8,7 +8,7 @@ import warnings
 from pathos.multiprocessing import ProcessingPool as Pool
 
 from simtools.quantities import hubble_parameter
-from simtools.utils import vector_norm
+from simtools.utils import vector_norm, recenter_coordinates
 
 
 class GadgetBox:
@@ -463,7 +463,9 @@ class GadgetSnapshot(GadgetBox):
                         else:
                             cutout_inds = []
                             for pos, rad in zip(region_positions, region_radii):
-                                r = vector_norm(coords - pos)
+                                r = vector_norm(
+                                    recenter_coordinates(
+                                        coords - pos, self.box_size))
                                 cutout_inds.append(np.argwhere(r < rad).flatten())
                         region_lens = [len(inds) for inds in cutout_inds]
                         cutout_inds = np.hstack(cutout_inds).astype(int)
@@ -909,7 +911,8 @@ class VelociraptorCatalogue:
                 gslice = slice(gidx, gidx + ngroups)
                 gidx += ngroups
 
-                group['number_of_particles'][gslice] = cat_groups['Group_Size'][()]
+                group['number_of_particles'][gslice] = cat_groups[
+                    'Group_Size'][()]
                 group['number_of_subhalos'][gslice] = cat_groups[
                     'Number_of_substructures_in_halo'][()]
 
@@ -919,7 +922,8 @@ class VelociraptorCatalogue:
                 parents = cat_groups['Parent_halo_ID'][()]
                 halo['parent_halo_ID'][gslice] = parents
                 rankingrp = np.zeros(len(parents), dtype=np.int32)
-                counts = np.unique(parents[parents > -1], return_counts=True)[1]
+                counts = np.unique(
+                    parents[parents > -1], return_counts=True)[1]
                 rankidx = len(np.argwhere(parents == -1))
                 for k, c in enumerate(counts):
                     rankingrp[rankidx:rankidx+c] = np.arange(1, c+1)
@@ -951,8 +955,10 @@ class VelociraptorCatalogue:
                 M_200 = cat_props['Mass_200crit'][()] * self.h
                 group['R_200crit'][gslice] = R_200
                 group['M_200crit'][gslice] = M_200
-                group['R_200mean'][gslice] = cat_props['R_200mean'][()] * self.h
-                group['M_200mean'][gslice] = cat_props['Mass_200mean'][()] * self.h
+                group['R_200mean'][gslice] = cat_props['R_200mean'][()] * \
+                    self.h
+                group['M_200mean'][gslice] = cat_props['Mass_200mean'][()] * \
+                    self.h
                 group['mass'][gslice] = cat_props['Mass_FOF'][()] * self.h
                 cmx, cmy, cmz = \
                     cat_props['Xc'][()] / self.scale_factor, \
@@ -992,7 +998,8 @@ class VelociraptorCatalogue:
                 haloids = groupids
                 halo['halo_ID'][gslice] = haloids
                 halo['group_ID'][gslice] = haloids
-                halo['ID_most_bound'][gslice] = cat_props['ID_mbp'][()]
+                halo['ID_most_bound_particle'][gslice] = cat_props['ID_mbp'][
+                    ()]
                 halo['mass'][gslice] = cat_props['Mass_tot'][()] * self.h
                 halo['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
                 halo['position_of_most_bound_particle'][gslice] = np.vstack(
@@ -1005,8 +1012,8 @@ class VelociraptorCatalogue:
                     (velmbpx, velmbpy, velmbpz)).T
                 halo['velocity_of_minimum_potential'][gslice] = np.vstack(
                     (velmpx, velmpy, velmpz)).T
-                halo['halfmass_radius'][gslice] = cat_props['R_HalfMass'][()] * \
-                    self.h
+                halo['halfmass_radius'][gslice] = cat_props['R_HalfMass'][()] \
+                    * self.h
 
         return group, halo
 
