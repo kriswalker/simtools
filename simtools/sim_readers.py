@@ -456,8 +456,7 @@ class GadgetSnapshot(GadgetBox):
                         coords = snappt['Coordinates'][()]
                         if self.use_kdtree:
                             kdtree = KDTree(
-                                coords, boxsize=self.box_size*(
-                                        1 + self.buffer))
+                                coords, boxsize=self.box_size*(1+self.buffer))
                             region_inds = kdtree.query_ball_point(
                                 region_positions, region_radii)
                         else:
@@ -884,9 +883,9 @@ class VelociraptorCatalogue:
         with h5py.File(catfile, 'r') as halo_cat:
             ngroups = halo_cat['Total_num_of_groups'][()][0]
 
-        group_keys_float = ['R_200crit', 'R_200mean', 'M_200crit', 'M_200mean',
-                            'V_200crit', 'V_200mean', 'A_200crit', 'A_200mean',
-                            'mass']
+        group_keys_float = ['R_200crit', 'R_200mean', 'R_BN98', 'M_200crit',
+                            'M_200mean', 'M_BN98', 'V_200crit', 'V_200mean',
+                            'A_200crit', 'A_200mean', 'mass']
         group_keys_int = ['group_ID', 'number_of_particles', 'first_subhalo',
                           'number_of_subhalos']
         halo_keys_float = ['mass', 'halfmass_radius']
