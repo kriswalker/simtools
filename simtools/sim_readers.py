@@ -885,7 +885,7 @@ class VelociraptorCatalogue:
 
         group_keys_float = ['R_200crit', 'R_200mean', 'R_BN98', 'M_200crit',
                             'M_200mean', 'M_BN98', 'V_200crit', 'V_200mean',
-                            'A_200crit', 'A_200mean', 'mass']
+                            'A_200crit', 'A_200mean', 'M_FOF', 'M_total']
         group_keys_int = ['group_ID', 'number_of_particles', 'first_subhalo',
                           'number_of_subhalos']
         halo_keys_float = ['mass', 'halfmass_radius']
@@ -974,7 +974,8 @@ class VelociraptorCatalogue:
                 group['R_BN98'][gslice] = cat_props['R_BN98'][()] * self.h
                 group['M_BN98'][gslice] = cat_props['Mass_BN98'][()] * \
                     self.h
-                group['mass'][gslice] = cat_props['Mass_FOF'][()] * self.h
+                group['M_FOF'][gslice] = cat_props['Mass_FOF'][()] * self.h
+                group['M_total'][gslice] = cat_props['Mass_tot'][()] * self.h
                 cmx, cmy, cmz = \
                     cat_props['Xc'][()] / self.scale_factor, \
                     cat_props['Yc'][()] / self.scale_factor, \
