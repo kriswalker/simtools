@@ -977,20 +977,20 @@ class VelociraptorCatalogue:
                 group['M_FOF'][gslice] = cat_props['Mass_FOF'][()] * self.h
                 group['M_total'][gslice] = cat_props['Mass_tot'][()] * self.h
                 cmx, cmy, cmz = \
-                    cat_props['Xc'][()] / self.scale_factor, \
-                    cat_props['Yc'][()] / self.scale_factor, \
-                    cat_props['Zc'][()] / self.scale_factor
+                    cat_props['Xc'][()] * self.h / self.scale_factor, \
+                    cat_props['Yc'][()] * self.h / self.scale_factor, \
+                    cat_props['Zc'][()] * self.h / self.scale_factor
                 group['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
                 mbpx, mbpy, mbpz = \
-                    cat_props['Xcmbp'][()] / self.scale_factor, \
-                    cat_props['Ycmbp'][()] / self.scale_factor, \
-                    cat_props['Zcmbp'][()] / self.scale_factor
+                    cat_props['Xcmbp'][()] * self.h / self.scale_factor, \
+                    cat_props['Ycmbp'][()] * self.h / self.scale_factor, \
+                    cat_props['Zcmbp'][()] * self.h / self.scale_factor
                 group['position_of_most_bound_particle'][gslice] = np.vstack(
                     (mbpx, mbpy, mbpz)).T
                 mpx, mpy, mpz = \
-                    cat_props['Xcminpot'][()] / self.scale_factor, \
-                    cat_props['Ycminpot'][()] / self.scale_factor, \
-                    cat_props['Zcminpot'][()] / self.scale_factor
+                    cat_props['Xcminpot'][()] * self.h / self.scale_factor, \
+                    cat_props['Ycminpot'][()] * self.h / self.scale_factor, \
+                    cat_props['Zcminpot'][()] * self.h / self.scale_factor
                 group['position_of_minimum_potential'][gslice] = np.vstack(
                     (mpx, mpy, mpz)).T
                 velcmx, velcmy, velcmz = cat_props['VXc'][()], \
