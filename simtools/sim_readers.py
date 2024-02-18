@@ -1,3 +1,4 @@
+import gc
 import os
 import glob
 import numpy as np
@@ -454,6 +455,7 @@ class GadgetSnapshot(GadgetBox):
 
                     if region_positions is not None:
                         coords = snappt['Coordinates'][()]
+                        num_part = len(coords)
                         if self.use_kdtree:
                             kdtree = KDTree(
                                 coords, boxsize=self.box_size*(1+self.buffer))
@@ -485,7 +487,17 @@ class GadgetSnapshot(GadgetBox):
                                 metallicities, \
                                 formation_times
                         coords = coords[region_inds]
+                        gc.collect()
                         coords = np.split(coords, np.cumsum(region_lens))[:-1]
+                        if read_mode == 2:
+                            region_inds_unique, inv = np.unique(
+                                region_inds, return_inverse=True)
+                            region_inds_bool = np.zeros(
+                                num_part, dtype=bool)
+                            region_inds_bool[region_inds_unique] = True
+                            region_inds_bool_vec = np.zeros(
+                                (num_part, 3), dtype=bool)
+                            region_inds_bool_vec[region_inds_unique, :] = True
                     else:
                         region_inds = None
 
@@ -495,9 +507,11 @@ class GadgetSnapshot(GadgetBox):
                         else:
                             if read_mode == 1:
                                 ids = snappt['ParticleIDs'][()]
+                                ids = ids[region_inds]
+                                gc.collect()
                             elif read_mode == 2:
                                 ids = snappt['ParticleIDs']
-                            ids = ids[region_inds]
+                                ids = ids[region_inds_bool][inv]
                             ids = np.split(ids, np.cumsum(region_lens))[:-1]
                     else:
                         ids = None
@@ -514,9 +528,11 @@ class GadgetSnapshot(GadgetBox):
                         else:
                             if read_mode == 1:
                                 vels = snappt['Velocities'][()]
+                                vels = vels[region_inds]
+                                gc.collect()
                             elif read_mode == 2:
                                 vels = snappt['Velocities']
-                            vels = vels[region_inds]
+                                vels = vels[region_inds_bool_vec][inv]
                             vels = np.split(vels, np.cumsum(region_lens))[:-1]
                     else:
                         vels = None
@@ -528,9 +544,11 @@ class GadgetSnapshot(GadgetBox):
                             else:
                                 if read_mode == 1:
                                     masses = snappt['Masses'][()]
+                                    masses = masses[region_inds]
+                                    gc.collect()
                                 elif read_mode == 2:
                                     masses = snappt['Masses']
-                                masses = masses[region_inds]
+                                    masses = masses[region_inds_bool][inv]
                                 masses = np.split(
                                     masses, np.cumsum(region_lens))[:-1]
                         else:
@@ -545,9 +563,12 @@ class GadgetSnapshot(GadgetBox):
                         else:
                             if read_mode == 1:
                                 metallicities = snappt['Metallicity'][()]
+                                metallicities = metallicities[region_inds]
+                                gc.collect()
                             elif read_mode == 2:
                                 metallicities = snappt['Metallicity']
-                            metallicities = metallicities[region_inds]
+                                metallicities = metallicities[
+                                    region_inds_bool][inv]
                             metallicities = np.split(
                                 metallicities, np.cumsum(region_lens))[:-1]
                     else:
@@ -555,14 +576,19 @@ class GadgetSnapshot(GadgetBox):
 
                     if 'StellarFormationTime' in list(snappt):
                         if region_inds is None:
-                            formation_times = snappt['StellarFormationTime'][()]
+                            formation_times = snappt[
+                                'StellarFormationTime'][()]
                         else:
                             if read_mode == 1:
-                                formation_times = snappt['StellarFormationTime'][
-                                    ()]
+                                formation_times = snappt[
+                                    'StellarFormationTime'][()]
+                                formation_times = formation_times[region_inds]
+                                gc.collect()
                             elif read_mode == 2:
-                                formation_times = snappt['StellarFormationTime']
-                            formation_times = formation_times[region_inds]
+                                formation_times = snappt[
+                                    'StellarFormationTime']
+                                formation_times = formation_times[
+                                    region_inds_bool][inv]
                             formation_times = np.split(
                                 formation_times, np.cumsum(region_lens))[:-1]
                     else:
