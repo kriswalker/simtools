@@ -913,7 +913,7 @@ class VelociraptorCatalogue:
                             'M_200mean', 'M_BN98', 'V_200crit', 'V_200mean',
                             'A_200crit', 'A_200mean', 'M_FOF', 'M_total']
         group_keys_int = ['group_ID', 'number_of_particles', 'first_subhalo',
-                          'number_of_subhalos']
+                          'number_of_subhalos', 'structure_type']
         halo_keys_float = ['mass', 'halfmass_radius']
         halo_keys_int = ['halo_ID', 'ID_most_bound_particle', 'offset',
                          'number_of_particles', 'group_ID', 'parent_halo_ID',
@@ -987,6 +987,8 @@ class VelociraptorCatalogue:
             with h5py.File(catfile_props, 'r') as cat_props:
                 groupids = cat_props['ID'][()]
                 group['group_ID'][gslice] = groupids
+                group['structure_type'][gslice] = cat_props[
+                    'Structuretype'][()]
                 group['first_subhalo'][gslice] = groupids
                 self.snapshot_number = int(groupids[0] / self.thidv)
                 R_200 = cat_props['R_200crit'][()] * self.h
