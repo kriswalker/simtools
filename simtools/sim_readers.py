@@ -636,10 +636,11 @@ class GadgetSnapshot(GadgetBox):
                 self.metallicities, region_offsets = stack(4)
             if snapdata[0][5] is not None:
                 self.formation_times, region_offsets = stack(5)
-            self.region_offsets = region_offsets
-            self.region_slices = [
-                slice(*x) for x in list(
-                    zip(region_offsets[:-1], region_offsets[1:]))]
+            if region_offsets is not None:
+                self.region_offsets = region_offsets
+                self.region_slices = [
+                    slice(*x) for x in list(
+                        zip(region_offsets[:-1], region_offsets[1:]))]
 
         if self.snapshot_format == 3:
             read_hdf5_snapshot(filenames)
