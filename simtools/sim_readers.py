@@ -992,15 +992,16 @@ class VelociraptorCatalogue:
                     'Structuretype'][()]
                 group['first_subhalo'][gslice] = groupids
                 self.snapshot_number = int(groupids[0] / self.thidv)
-                R_200 = cat_props['R_200crit'][()] * self.h
+                R_200 = cat_props['R_200crit'][()] * self.h / self.scale_factor
                 M_200 = cat_props['Mass_200crit'][()] * self.h
                 group['R_200crit'][gslice] = R_200
                 group['M_200crit'][gslice] = M_200
                 group['R_200mean'][gslice] = cat_props['R_200mean'][()] * \
-                    self.h
+                    self.h / self.scale_factor
                 group['M_200mean'][gslice] = cat_props['Mass_200mean'][()] * \
                     self.h
-                group['R_BN98'][gslice] = cat_props['R_BN98'][()] * self.h
+                group['R_BN98'][gslice] = cat_props['R_BN98'][()] * self.h / \
+                    self.scale_factor
                 group['M_BN98'][gslice] = cat_props['Mass_BN98'][()] * \
                     self.h
                 group['M_FOF'][gslice] = cat_props['Mass_FOF'][()] * self.h
