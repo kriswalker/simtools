@@ -277,6 +277,11 @@ class GadgetSnapshot(GadgetBox):
     def read_snapshot(self, filenames, load_ids, load_coords, load_vels,
                       load_masses, region_positions, region_radii, read_mode):
 
+        if region_positions is not None:
+            if isinstance(region_positions, float):
+                region_positions = [region_positions]
+                region_radii = [region_radii]
+
         def read_binary_snapshot(fnames):
 
             with open(fnames[0], 'rb') as snap:
