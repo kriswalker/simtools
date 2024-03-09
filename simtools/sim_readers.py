@@ -278,7 +278,7 @@ class GadgetSnapshot(GadgetBox):
                       load_masses, region_positions, region_radii, read_mode):
 
         if region_positions is not None:
-            if isinstance(region_positions, float):
+            if not hasattr(region_radii, '__iter__'):
                 region_positions = [region_positions]
                 region_radii = [region_radii]
 
@@ -831,7 +831,8 @@ class GadgetCatalogue(GadgetBox):
 class VelociraptorCatalogue:
 
     def __init__(self, path, catalogue_filename, snapshot_number,
-                 particle_type, thidv=int(1e12), verbose=True):
+                 particle_type, thidv=int(1e12), load_particle_ids=True,
+                 verbose=True):
 
         self.catalogue_path = path
         self.catalogue_filename = catalogue_filename
@@ -855,7 +856,7 @@ class VelociraptorCatalogue:
                       'directory {}'.format(ncat, snapshot_number, path))
                 start = time.time()
             self.read_params()
-            self.group, self.halo = self.read_halos(catalogue_files)
+            self.halo = self.read_halos(catalogue_files, load_particle_ids)
             if verbose:
                 print("...Loaded in {} seconds\n".format(
                     round(time.time() - start, 4)))
@@ -906,167 +907,135 @@ class VelociraptorCatalogue:
             self.critical_density = 3 * (self.hubble_parameter / self.h)**2 / \
                 (8 * np.pi * self.gravitational_constant)
 
-    def read_halos(self, catalogue_files):
+    def read_halos(self, catalogue_files, load_particle_ids):
 
-        group = {}
         halo = {}
 
         catfile = catalogue_files[0]
         with h5py.File(catfile, 'r') as halo_cat:
-            ngroups = halo_cat['Total_num_of_groups'][()][0]
+            nhalos = halo_cat['Total_num_of_groups'][()][0]
 
-        group_keys_float = ['R_200crit', 'R_200mean', 'R_BN98', 'M_200crit',
-                            'M_200mean', 'M_BN98', 'V_200crit', 'V_200mean',
-                            'A_200crit', 'A_200mean', 'M_FOF', 'M_total']
-        group_keys_int = ['group_ID', 'number_of_particles', 'first_subhalo',
-                          'number_of_subhalos', 'structure_type']
-        halo_keys_float = ['mass', 'halfmass_radius']
+        halo_keys_float = ['R_200crit', 'R_200mean', 'R_BN98', 'M_200crit',
+                           'M_200mean', 'M_BN98', 'M_FOF', 'M_exclusive',
+                           'halfmass_radius']
         halo_keys_int = ['halo_ID', 'ID_most_bound_particle', 'offset',
-                         'number_of_particles', 'group_ID', 'parent_halo_ID',
-                         'rank_in_group']
-        for gkey in group_keys_float:
-            group[gkey] = np.empty(ngroups)
-        for gkey in group_keys_int:
-            group[gkey] = np.empty(ngroups, dtype=np.int64)
+                         'number_of_particles', 'parent_halo_ID',
+                         'rank_in_parent', 'number_of_subhalos',
+                         'structure_type']
+        halo_keys_vec3 = ['center_of_mass', 'position_of_most_bound_particle',
+                          'position_of_minimum_potential',
+                          'velocity_of_center_of_mass',
+                          'velocity_of_most_bound_particle',
+                          'velocity_of_minimum_potential']
         for hkey in halo_keys_float:
-            halo[hkey] = np.empty(ngroups)
+            halo[hkey] = np.empty(nhalos)
         for hkey in halo_keys_int:
-            halo[hkey] = np.empty(ngroups, dtype=np.int64)
-        group['center_of_mass'] = np.empty((ngroups, 3))
-        group['position_of_most_bound_particle'] = np.empty((ngroups, 3))
-        group['position_of_minimum_potential'] = np.empty((ngroups, 3))
-        group['velocity_of_center_of_mass'] = np.empty((ngroups, 3))
-        group['velocity_of_most_bound_particle'] = np.empty((ngroups, 3))
-        group['velocity_of_minimum_potential'] = np.empty((ngroups, 3))
-        halo['center_of_mass'] = np.empty((ngroups, 3))
-        halo['position_of_most_bound_particle'] = np.empty((ngroups, 3))
-        halo['position_of_minimum_potential'] = np.empty((ngroups, 3))
-        halo['velocity_of_center_of_mass'] = np.empty((ngroups, 3))
-        halo['velocity_of_most_bound_particle'] = np.empty((ngroups, 3))
-        halo['velocity_of_minimum_potential'] = np.empty((ngroups, 3))
-        halo['particle_IDs'] = []
+            halo[hkey] = np.empty(nhalos, dtype=np.int64)
+        for hkey in halo_keys_vec3:
+            halo[hkey] = np.empty((nhalos, 3))
+        if load_particle_ids:
+            halo['particle_IDs'] = []
 
-        gidx, hidx = 0, 0
+        hidx = 0
         for catfile in catalogue_files:
 
             with h5py.File(catfile, 'r') as cat_groups:
 
-                ngroups = int(cat_groups['Num_of_groups'][()][0])
-                gslice = slice(gidx, gidx + ngroups)
-                gidx += ngroups
+                nhalos = int(cat_groups['Num_of_groups'][()][0])
+                hslice = slice(hidx, hidx + nhalos)
+                hidx += nhalos
 
-                group['number_of_particles'][gslice] = cat_groups[
-                    'Group_Size'][()]
-                group['number_of_subhalos'][gslice] = cat_groups[
+                halo['number_of_subhalos'][hslice] = cat_groups[
                     'Number_of_substructures_in_halo'][()]
 
                 hoffset = cat_groups['Offset'][()]
-                halo['offset'][gslice] = hoffset
+                halo['offset'][hslice] = hoffset
 
                 parents = cat_groups['Parent_halo_ID'][()]
-                halo['parent_halo_ID'][gslice] = parents
-                rankingrp = np.zeros(len(parents), dtype=np.int32)
+                halo['parent_halo_ID'][hslice] = parents
+                rank = np.zeros(len(parents), dtype=np.int32)
                 counts = np.unique(
                     parents[parents > -1], return_counts=True)[1]
                 rankidx = len(np.argwhere(parents == -1))
                 for k, c in enumerate(counts):
-                    rankingrp[rankidx:rankidx+c] = np.arange(1, c+1)
+                    rank[rankidx:rankidx+c] = np.arange(1, c+1)
                     rankidx += c
-                halo['rank_in_group'][gslice] = rankingrp
+                halo['rank_in_parent'][hslice] = rank
 
             catfile_particles = catfile.replace(
                 'catalog_groups', 'catalog_particles')
             with h5py.File(catfile_particles, 'r') as cat_part:
                 npart = cat_part['Num_of_particles_in_groups'][()][0]
                 if len(hoffset) == 1:
-                    halo['number_of_particles'][gslice] = np.array([npart])
+                    halo['number_of_particles'][hslice] = np.array([npart])
                 else:
                     hlen = hoffset[1:] - hoffset[:-1]
-                    halo['number_of_particles'][gslice] = np.append(
+                    halo['number_of_particles'][hslice] = np.append(
                         hlen, npart - hoffset[-1])
-                for pids in np.split(cat_part['Particle_IDs'],
-                                     np.append(hoffset[1:], npart))[:-1]:
-                    halo['particle_IDs'].append(pids)
+                if load_particle_ids:
+                    for pids in np.split(cat_part['Particle_IDs'],
+                                         np.append(hoffset[1:], npart))[:-1]:
+                        halo['particle_IDs'].append(pids)
 
             catfile_props = catfile.replace(
                 'catalog_groups', 'properties')
             with h5py.File(catfile_props, 'r') as cat_props:
-                groupids = cat_props['ID'][()]
-                group['group_ID'][gslice] = groupids
-                group['structure_type'][gslice] = cat_props[
+                haloids = cat_props['ID'][()]
+                halo['halo_ID'][hslice] = haloids
+                halo['structure_type'][hslice] = cat_props[
                     'Structuretype'][()]
-                group['first_subhalo'][gslice] = groupids
-                self.snapshot_number = int(groupids[0] / self.thidv)
                 R_200 = cat_props['R_200crit'][()] * self.h / self.scale_factor
                 M_200 = cat_props['Mass_200crit'][()] * self.h
-                group['R_200crit'][gslice] = R_200
-                group['M_200crit'][gslice] = M_200
-                group['R_200mean'][gslice] = cat_props['R_200mean'][()] * \
+                halo['R_200crit'][hslice] = R_200
+                halo['M_200crit'][hslice] = M_200
+                halo['R_200mean'][hslice] = cat_props['R_200mean'][()] * \
                     self.h / self.scale_factor
-                group['M_200mean'][gslice] = cat_props['Mass_200mean'][()] * \
+                halo['M_200mean'][hslice] = cat_props['Mass_200mean'][()] * \
                     self.h
-                group['R_BN98'][gslice] = cat_props['R_BN98'][()] * self.h / \
+                halo['R_BN98'][hslice] = cat_props['R_BN98'][()] * self.h / \
                     self.scale_factor
-                group['M_BN98'][gslice] = cat_props['Mass_BN98'][()] * \
+                halo['M_BN98'][hslice] = cat_props['Mass_BN98'][()] * \
                     self.h
-                group['M_FOF'][gslice] = cat_props['Mass_FOF'][()] * self.h
-                group['M_total'][gslice] = cat_props['Mass_tot'][()] * self.h
+                halo['M_FOF'][hslice] = cat_props['Mass_FOF'][()] * self.h
+                halo['M_exclusive'][hslice] = cat_props['Mass_tot'][()] * \
+                    self.h
                 cmx, cmy, cmz = \
                     cat_props['Xc'][()] * self.h / self.scale_factor, \
                     cat_props['Yc'][()] * self.h / self.scale_factor, \
                     cat_props['Zc'][()] * self.h / self.scale_factor
-                group['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
+                halo['center_of_mass'][hslice] = np.vstack((cmx, cmy, cmz)).T
                 mbpx, mbpy, mbpz = \
                     cat_props['Xcmbp'][()] * self.h / self.scale_factor, \
                     cat_props['Ycmbp'][()] * self.h / self.scale_factor, \
                     cat_props['Zcmbp'][()] * self.h / self.scale_factor
-                group['position_of_most_bound_particle'][gslice] = np.vstack(
+                halo['position_of_most_bound_particle'][hslice] = np.vstack(
                     (mbpx, mbpy, mbpz)).T
                 mpx, mpy, mpz = \
                     cat_props['Xcminpot'][()] * self.h / self.scale_factor, \
                     cat_props['Ycminpot'][()] * self.h / self.scale_factor, \
                     cat_props['Zcminpot'][()] * self.h / self.scale_factor
-                group['position_of_minimum_potential'][gslice] = np.vstack(
+                halo['position_of_minimum_potential'][hslice] = np.vstack(
                     (mpx, mpy, mpz)).T
                 velcmx, velcmy, velcmz = cat_props['VXc'][()], \
                     cat_props['VYc'][()], cat_props['VZc'][()]
-                group['velocity_of_center_of_mass'][gslice] = np.vstack(
+                halo['velocity_of_center_of_mass'][hslice] = np.vstack(
                     (velcmx, velcmy, velcmz)).T
                 velmbpx, velmbpy, velmbpz = cat_props['VXcmbp'][()], \
                     cat_props['VYcmbp'][()], cat_props['VZcmbp'][()]
-                group['velocity_of_most_bound_particle'][gslice] = np.vstack(
+                halo['velocity_of_most_bound_particle'][hslice] = np.vstack(
                     (velmbpx, velmbpy, velmbpz)).T
                 velmpx, velmpy, velmpz = cat_props['VXcminpot'][()], \
                     cat_props['VYcminpot'][()], cat_props['VZcminpot'][()]
-                group['velocity_of_minimum_potential'][gslice] = np.vstack(
+                halo['velocity_of_minimum_potential'][hslice] = np.vstack(
                     (velmpx, velmpy, velmpz)).T
-
-                np.seterr(divide='ignore', invalid='ignore')
-                V_200 = np.sqrt(self.gravitational_constant * M_200 / R_200)
-                group['V_200crit'][gslice] = V_200
-                group['A_200crit'][gslice] = V_200**2 / R_200
-
-                haloids = groupids
-                halo['halo_ID'][gslice] = haloids
-                halo['group_ID'][gslice] = haloids
-                halo['ID_most_bound_particle'][gslice] = cat_props['ID_mbp'][
+                halo['ID_most_bound_particle'][hslice] = cat_props['ID_mbp'][
                     ()]
-                halo['mass'][gslice] = cat_props['Mass_tot'][()] * self.h
-                halo['center_of_mass'][gslice] = np.vstack((cmx, cmy, cmz)).T
-                halo['position_of_most_bound_particle'][gslice] = np.vstack(
-                    (mbpx, mbpy, mbpz)).T
-                halo['position_of_minimum_potential'][gslice] = np.vstack(
-                    (mpx, mpy, mpz)).T
-                halo['velocity_of_center_of_mass'][gslice] = np.vstack(
-                    (velcmx, velcmy, velcmz)).T
-                halo['velocity_of_most_bound_particle'][gslice] = np.vstack(
-                    (velmbpx, velmbpy, velmbpz)).T
-                halo['velocity_of_minimum_potential'][gslice] = np.vstack(
-                    (velmpx, velmpy, velmpz)).T
-                halo['halfmass_radius'][gslice] = cat_props['R_HalfMass'][()] \
+                halo['halfmass_radius'][hslice] = cat_props['R_HalfMass'][()] \
                     * self.h
 
-        return group, halo
+                self.snapshot_number = int(haloids[0] / self.thidv)
+
+        return halo
 
 
 class AHFCatalogue:
