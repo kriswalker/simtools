@@ -949,7 +949,6 @@ class VelociraptorCatalogue:
                     'Number_of_substructures_in_halo'][()]
 
                 hoffset = cat_groups['Offset'][()]
-                halo['offset'][hslice] = hoffset
 
                 parents = cat_groups['Parent_halo_ID'][()]
                 halo['parent_halo_ID'][hslice] = parents
@@ -973,9 +972,7 @@ class VelociraptorCatalogue:
                     halo['number_of_particles'][hslice] = np.append(
                         hlen, npart - hoffset[-1])
                 if load_particle_ids:
-                    for pids in np.split(cat_part['Particle_IDs'],
-                                         np.append(hoffset[1:], npart))[:-1]:
-                        halo['particle_IDs'].append(pids)
+                    halo['particle_IDs'].append(cat_part['Particle_IDs'][()])
 
             catfile_props = catfile.replace(
                 'catalog_groups', 'properties')
@@ -1034,6 +1031,11 @@ class VelociraptorCatalogue:
                     * self.h
 
                 self.snapshot_number = int(haloids[0] / self.thidv)
+
+        if load_particle_ids:
+            halo['particle_IDs'] = np.hstack(halo['particle_IDs'])
+            halo['offset'][:] = np.array(
+                [0] + list(np.cumsum(halo['number_of_particles']))[:-1])
 
         return halo
 
