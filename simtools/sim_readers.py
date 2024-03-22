@@ -277,10 +277,8 @@ class GadgetSnapshot(GadgetBox):
     def read_snapshot(self, filenames, load_ids, load_coords, load_vels,
                       load_masses, region_positions, region_radii, read_mode):
 
-        if region_positions is not None:
-            if not hasattr(region_radii, '__iter__'):
-                region_positions = [region_positions]
-                region_radii = [region_radii]
+        region_positions = np.atleast_2d(region_positions)
+        region_radii = np.atleast_1d(region_radii)
 
         def read_binary_snapshot(fnames):
 
@@ -537,7 +535,9 @@ class GadgetSnapshot(GadgetBox):
                                 gc.collect()
                             elif read_mode == 2:
                                 vels = snappt['Velocities']
-                                vels = vels[region_inds_bool_vec][inv]
+                                vels = vels[region_inds_bool_vec].reshape(
+                                    len(region_inds_unique), 3)
+                                vels = vels[inv]
                             vels = np.split(vels, np.cumsum(region_lens))[:-1]
                     else:
                         vels = None
@@ -642,7 +642,7 @@ class GadgetSnapshot(GadgetBox):
             if snapdata[0][5] is not None:
                 self.formation_times, region_offsets = stack(5)
             if region_offsets is not None:
-                self.region_offsets = region_offsets
+                self.region_offsets = region_offsets[:-1]
                 self.region_slices = [
                     slice(*x) for x in list(
                         zip(region_offsets[:-1], region_offsets[1:]))]
