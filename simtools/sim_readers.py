@@ -277,8 +277,9 @@ class GadgetSnapshot(GadgetBox):
     def read_snapshot(self, filenames, load_ids, load_coords, load_vels,
                       load_masses, region_positions, region_radii, read_mode):
 
-        region_positions = np.atleast_2d(region_positions)
-        region_radii = np.atleast_1d(region_radii)
+        if region_positions is not None:
+            region_positions = np.atleast_2d(region_positions)
+            region_radii = np.atleast_1d(region_radii)
 
         def read_binary_snapshot(fnames):
 
