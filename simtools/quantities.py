@@ -30,7 +30,7 @@ def azimuthal_velocity(coords, vels):
 def velocity_dispersion(vels, masses=None):
 
     vels_ = vels - np.mean(vels, axis=0)
-    if masses is None:
+    if masses is None or not hasattr(masses, "__len__"):
         return np.sqrt(np.mean(np.einsum('...i,...i', vels_, vels_)))
     else:
         return np.sqrt(
