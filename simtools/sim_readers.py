@@ -1107,7 +1107,7 @@ class AHFCatalogue:
             halo['host_ID'][sl] = np.loadtxt(
                 filename, dtype=np.uint64, skiprows=0, usecols=1)
 
-            data = np.loadtxt(filename, skiprows=0)[:, 2:]
+            data = np.atleast_2d(np.loadtxt(filename, skiprows=0))[:, 2:]
             halo['number_of_subhalos'][sl] = data[:, 0].astype(np.int32)
             halo['virial_mass'][sl] = data[:, 1]
             halo['number_of_particles'][sl] = data[:, 2].astype(np.int32)
