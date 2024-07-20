@@ -294,6 +294,8 @@ class GadgetSnapshot(GadgetBox):
                 if self.particle_type == 0:
                     self.us_all = np.array([])
                     self.rhos_all = np.array([])
+                if region_positions is not None:
+                    self.region_offsets = np.array([])
 
                 return
 
@@ -427,7 +429,7 @@ class GadgetSnapshot(GadgetBox):
                 if self.particle_type == 0:
                     self.internal_energy = np.concatenate(us_all)[inds]
                     self.density = np.concatenate(rhos_all)[inds]
-                self.region_offsets = np.array([0, len(inds)])
+                self.region_offsets = np.array([0])
             else:
                 self.ids = np.concatenate(ids_all)
                 self.coordinates = np.concatenate(coords_all)
