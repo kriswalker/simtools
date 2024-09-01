@@ -11,7 +11,7 @@ from simtools.quantities import radial_velocity, azimuthal_velocity, \
 def bin_halo(coords, radial_bins, radius_limits=None, center=False,
              log_bins=True, n_angular_bins=1):
 
-    if isinstance(radial_bins, int):
+    if not hasattr(radial_bins, "__len__"):
 
         if radius_limits is None:
             r = vector_norm(coords)
@@ -98,7 +98,8 @@ def bin_halo(coords, radial_bins, radius_limits=None, center=False,
 
 def calc_density_profile(masses, coords=None, radial_bins=None,
                          radius_limits=None, center=None, log_bins=None,
-                         n_angular_bins=None, binned_halo=None):
+                         n_angular_bins=None, binned_halo=None,
+                         return_angular_profiles=False):
 
     if binned_halo is None:
         binds, redges, rcenters = bin_halo(
@@ -127,7 +128,10 @@ def calc_density_profile(masses, coords=None, radial_bins=None,
         density_profiles = []
         for binds_angle in binds:
             density_profiles.append(calc_profile(binds_angle))
-        return rcenters, np.median(np.array(density_profiles), axis=0)
+        if return_angular_profiles:
+            return rcenters, np.array(density_profiles)
+        else:
+            return rcenters, np.median(np.array(density_profiles), axis=0)
     else:
         return rcenters, calc_profile(binds)
 
