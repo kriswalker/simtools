@@ -57,8 +57,25 @@ def velocity_dispersion(vels, masses=None):
             len(masses) / np.sum(masses))
 
 
-def calc_specific_angular_momentum(x, v, npart):
-    return np.sum(np.cross(x, v), axis=0) / npart
+def angular_momentum(x, v, m=None, npart=None, specific=False):
+
+    if specific:
+        if npart is not None:
+            return np.sum(np.cross(x, v), axis=0) / npart
+        else:
+            if isinstance(m, np.ndarray):
+                p = m[:, np.newaxis] * v
+                return np.sum(np.cross(x, p), axis=0) / np.sum(m)
+            else:
+                raise ValueError(
+                    "`particle_masses` must by a 1D numpy array when \
+                        specific=True and npart=None.")
+    else:
+        if isinstance(m, np.ndarray):
+            p = m[:, np.newaxis] * v
+            return np.sum(np.cross(x, p), axis=0)
+        else:
+            return np.sum(np.cross(x, m*v), axis=0)
 
 
 def estimate_overdensity_mass_and_radius_from_profile(mass_profile, r,
