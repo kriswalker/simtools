@@ -220,20 +220,17 @@ class GadgetBox:
 
 class GadgetSnapshot(GadgetBox):
 
-    def __init__(self, path, snapshot_filename, snapshot_number,
-                 particle_type=None, load_ids=False, load_coords=False,
-                 load_vels=False, load_masses=False, region_positions=None,
-                 region_radii=None, use_kdtree=False, buffer=0.0, read_mode=1,
-                 unit_length_in_cm=None, unit_mass_in_g=None,
-                 unit_velocity_in_cm_per_s=None, snapshot_format=None,
-                 npool=None, verbose=True):
+    def __init__(self, snapshot_filename, particle_type=None, load_ids=False,
+                 load_coords=False, load_vels=False, load_masses=False,
+                 region_positions=None, region_radii=None, use_kdtree=False,
+                 buffer=0.0, read_mode=1, unit_length_in_cm=None,
+                 unit_mass_in_g=None, unit_velocity_in_cm_per_s=None,
+                 snapshot_format=None, npool=None, verbose=True):
 
         super().__init__(unit_length_in_cm, unit_mass_in_g,
                          unit_velocity_in_cm_per_s)
 
-        self.snapshot_path = path
         self.snapshot_filename = snapshot_filename
-        self.snapshot_number = snapshot_number
         self.particle_type = particle_type
         self.region_positions = region_positions
         self.region_radii = region_radii
@@ -243,15 +240,14 @@ class GadgetSnapshot(GadgetBox):
         self.buffer = buffer
 
         if snapshot_format is None:
-            if snapshot_filename.split('.')[-1] == 'hdf5':
+            if h5py.is_hdf5(snapshot_filename):
                 self.snapshot_format = 3
             else:
                 self.snapshot_format = 2
         else:
             self.snapshot_format = snapshot_format
 
-        snapshot_files = glob.glob(path + '/{}'.format(
-            snapshot_filename.format('%03d' % snapshot_number)))
+        snapshot_files = glob.glob(snapshot_filename)
 
         nsnap = len(snapshot_files)
         if nsnap > 0:
@@ -260,8 +256,8 @@ class GadgetSnapshot(GadgetBox):
                 snapshot_files = self.reorder_subfiles(
                     snapshot_filename, snapshot_files)
             if verbose:
-                print('Found {} snapshot file(s) for snapshot {} in directory'
-                      ' {}'.format(nsnap, snapshot_number, path))
+                print('Found {} snapshot file(s) corresponding to {}'.format(
+                    nsnap, snapshot_filename))
                 start = time.time()
             self.read_snapshot(
                 snapshot_files, load_ids, load_coords, load_vels, load_masses,
@@ -661,30 +657,26 @@ class GadgetSnapshot(GadgetBox):
 
 class GadgetCatalogue(GadgetBox):
 
-    def __init__(self, path, catalogue_filename, snapshot_number,
-                 particle_type=None, load_halo_data=True,
-                 unit_length_in_cm=None, unit_mass_in_g=None,
-                 unit_velocity_in_cm_per_s=None, catalogue_format=None,
+    def __init__(self, catalogue_filename, particle_type=None,
+                 load_data=True, catalogue_format=None, unit_length_in_cm=None,
+                 unit_mass_in_g=None, unit_velocity_in_cm_per_s=None,
                  verbose=True):
 
         super().__init__(unit_length_in_cm, unit_mass_in_g,
                          unit_velocity_in_cm_per_s)
 
-        self.catalogue_path = path
         self.catalogue_filename = catalogue_filename
-        self.snapshot_number = snapshot_number
         self.particle_type = particle_type
 
         if catalogue_format is None:
-            if catalogue_filename.split('.')[-1] == 'hdf5':
+            if h5py.is_hdf5(catalogue_filename):
                 self.catalogue_format = 3
             else:
                 self.catalogue_format = 2
         else:
             self.catalogue_format = catalogue_format
 
-        catalogue_files = np.sort(glob.glob(path + '/{}'.format(
-            catalogue_filename.format('%03d' % snapshot_number))))
+        catalogue_files = glob.glob(catalogue_filename)
         ncat = len(catalogue_files)
         if ncat > 0:
             self.has_cat = True
@@ -692,11 +684,11 @@ class GadgetCatalogue(GadgetBox):
                 catalogue_files = self.reorder_subfiles(
                     catalogue_filename, catalogue_files)
             if verbose:
-                print('Found {} halo catalogue file(s) for snapshot {} in '
-                      'directory {}'.format(ncat, snapshot_number, path))
+                print('Found {} halo catalogue file(s) corresponding to {}'.\
+                      format(ncat, catalogue_filename))
                 start = time.time()
             self.group, self.halo = self.read_halos(
-                catalogue_files, load_halo_data)
+                catalogue_files, load_data)
             if verbose:
                 print("...Loaded in {} seconds\n".format(
                     round(time.time() - start, 4)))
@@ -704,7 +696,7 @@ class GadgetCatalogue(GadgetBox):
             self.has_cat = False
             warnings.warn('No catalogue files found!')
 
-    def read_halos(self, filenames, load_halo_data):
+    def read_halos(self, filenames, load_data):
 
         with h5py.File(filenames[0], 'r') as halo_cat:
             if not hasattr(self, 'redshift'):
@@ -712,7 +704,7 @@ class GadgetCatalogue(GadgetBox):
             self.number_of_groups = halo_cat['Header'].attrs['Ngroups_Total']
             self.number_of_halos = halo_cat['Header'].attrs['Nsubhalos_Total']
 
-        if not load_halo_data:
+        if not load_data:
             return {}, {}
 
         group = {}
@@ -1057,26 +1049,28 @@ class VelociraptorCatalogue:
 
 class AHFCatalogue:
 
-    def __init__(self, path, catalogue_filename, snapshot_number,
-                 particle_type=None, load_halo_data=True,
-                 load_halo_particle_ids=False, verbose=True):
+    def __init__(self, catalogue_filename, particle_type=None,
+                 load_data=True, load_particle_ids=False, verbose=True):
+        
+        if load_particle_ids:
+            if particle_type is None:
+                raise ValueError(
+                    '`particle_type` must be specified when ' + \
+                        '`load_halo_particle_ids` is True')
 
-        self.catalogue_path = path
         self.catalogue_filename = catalogue_filename
-        self.snapshot_number = snapshot_number
         self.particle_type = particle_type
 
-        catalogue_files = glob.glob(path + '/{}'.format(
-            catalogue_filename.format('%03d' % snapshot_number, 'halos')))
+        catalogue_files = glob.glob(catalogue_filename.format('halos'))
         ncat = len(catalogue_files)
         if ncat > 0:
             self.has_cat = True
             if verbose:
-                print('Found {} halo catalogue file(s) for snapshot {} in '
-                      'directory {}'.format(ncat, snapshot_number, path))
+                print('Found {} halo catalogue file(s) corresponding to {}'.\
+                      format(ncat, catalogue_filename))
                 start = time.time()
             self.halo = self.read_halos(
-                catalogue_files, load_halo_data, load_halo_particle_ids)
+                catalogue_files, load_data, load_particle_ids)
             if verbose:
                 print("...Loaded in {} seconds\n".format(
                     round(time.time() - start, 4)))
@@ -1084,9 +1078,9 @@ class AHFCatalogue:
             self.has_cat = False
             warnings.warn('No catalogue files found!')
 
-    def read_halos(self, filenames, load_halo_data, load_halo_particle_ids):
+    def read_halos(self, filenames, load_data, load_particle_ids):
 
-        if not load_halo_data:
+        if not load_data:
             return {}
 
         halo = {}
@@ -1137,7 +1131,7 @@ class AHFCatalogue:
             halo['center_of_mass_offset'][sl] = data[:, 13]
             halo['angular_momentum'][sl] = data[:, 19:22]
 
-            if load_halo_particle_ids:
+            if load_particle_ids:
                 filename = filename.replace('halos', 'particles')
                 particle_ids = np.loadtxt(filename, dtype=np.uint64,
                                           skiprows=1, usecols=0)
