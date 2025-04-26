@@ -239,18 +239,19 @@ class GadgetSnapshot(GadgetBox):
         self.npool = npool
         self.buffer = buffer
 
-        if snapshot_format is None:
-            if h5py.is_hdf5(snapshot_filename):
-                self.snapshot_format = 3
-            else:
-                self.snapshot_format = 2
-        else:
-            self.snapshot_format = snapshot_format
-
         snapshot_files = glob.glob(snapshot_filename)
-
         nsnap = len(snapshot_files)
+
         if nsnap > 0:
+
+            if snapshot_format is None:
+                if h5py.is_hdf5(snapshot_files[0]):
+                    self.snapshot_format = 3
+                else:
+                    self.snapshot_format = 2
+            else:
+                self.snapshot_format = snapshot_format
+
             self.has_snap = True
             if nsnap > 1:
                 snapshot_files = self.reorder_subfiles(
@@ -668,17 +669,19 @@ class GadgetCatalogue(GadgetBox):
         self.catalogue_filename = catalogue_filename
         self.particle_type = particle_type
 
-        if catalogue_format is None:
-            if h5py.is_hdf5(catalogue_filename):
-                self.catalogue_format = 3
-            else:
-                self.catalogue_format = 2
-        else:
-            self.catalogue_format = catalogue_format
-
         catalogue_files = glob.glob(catalogue_filename)
         ncat = len(catalogue_files)
+
         if ncat > 0:
+
+            if catalogue_format is None:
+                if h5py.is_hdf5(catalogue_files[0]):
+                    self.catalogue_format = 3
+                else:
+                    self.catalogue_format = 2
+            else:
+                self.catalogue_format = catalogue_format
+
             self.has_cat = True
             if ncat > 1:  # order files by sub-file number
                 catalogue_files = self.reorder_subfiles(
