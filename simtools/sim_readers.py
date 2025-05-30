@@ -584,9 +584,47 @@ class GadgetSnapshot(GadgetBox):
                                 formation_times, np.cumsum(region_lens))[:-1]
                     else:
                         formation_times = None
+                    
+                    if 'Density' in list(snappt):
+                        if region_inds is None:
+                            densities = snappt['Density'][()]
+                        else:
+                            if read_mode == 1:
+                                densities = snappt[
+                                    'Density'][()]
+                                formation_times = formation_times[region_inds]
+                                gc.collect()
+                            elif read_mode == 2:
+                                densities = snappt[
+                                    'Density']
+                                densities = densities[
+                                    region_inds_bool][inv]
+                            densities = np.split(
+                                densities, np.cumsum(region_lens))[:-1]
+                    else:
+                        densities = None
+                    
+                    if 'InternalEnergy' in list(snappt):
+                        if region_inds is None:
+                            internal_energies = snappt['InternalEnergy'][()]
+                        else:
+                            if read_mode == 1:
+                                internal_energies = snappt[
+                                    'InternalEnergy'][()]
+                                internal_energies = internal_energies[region_inds]
+                                gc.collect()
+                            elif read_mode == 2:
+                                internal_energies = snappt[
+                                    'InternalEnergy']
+                                internal_energies = internal_energies[
+                                    region_inds_bool][inv]
+                            internal_energies = np.split(
+                                internal_energies, np.cumsum(region_lens))[:-1]
+                    else:
+                        internal_energies = None
 
                 return ids, coords, vels, masses, metallicities, \
-                    formation_times
+                    formation_times, densities, internal_energies
 
             if self.npool is None or self.npool == 1:
                 snapdata = []
@@ -627,6 +665,10 @@ class GadgetSnapshot(GadgetBox):
                 self.metallicities, region_offsets = stack(4)
             if snapdata[0][5] is not None:
                 self.formation_times, region_offsets = stack(5)
+            if snapdata[0][6] is not None:
+                self.densities, region_offsets = stack(6)
+            if snapdata[0][7] is not None:
+                self.internal_energies, region_offsets = stack(7)
             if region_offsets is not None:
                 self.region_offsets = region_offsets[:-1]
                 self.region_slices = [
