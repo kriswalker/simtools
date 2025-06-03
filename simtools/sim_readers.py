@@ -752,6 +752,7 @@ class GadgetCatalogue(GadgetBox):
             
             config_options = list(halo_cat['Config'].attrs)
             
+            self.hydro_sim = False
             if "COOLING" in config_options:
                 if self.verbose:
                     warnings.warn("Code was compiled with COOLING so assuming gas and stars present!")
