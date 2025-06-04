@@ -710,6 +710,7 @@ class GadgetCatalogue(GadgetBox):
 
         self.catalogue_filename = catalogue_filename
         self.particle_type = particle_type
+        self.verbose = verbose
 
         catalogue_files = glob.glob(catalogue_filename)
         ncat = len(catalogue_files)
@@ -734,7 +735,7 @@ class GadgetCatalogue(GadgetBox):
                 start = time.time()
             self.group, self.halo = self.read_halos(
                 catalogue_files, load_data)
-            if verbose:
+            if self.verbose:
                 print("...Loaded in {} seconds\n".format(
                     round(time.time() - start, 4)))
         if ncat == 0 or self.group is None:
@@ -748,6 +749,14 @@ class GadgetCatalogue(GadgetBox):
                 self.read_parameters(halo_cat, self.catalogue_format)
             self.number_of_groups = halo_cat['Header'].attrs['Ngroups_Total']
             self.number_of_halos = halo_cat['Header'].attrs['Nsubhalos_Total']
+            
+            config_options = list(halo_cat['Config'].attrs)
+            
+            self.hydro_sim = False
+            if "COOLING" in config_options:
+                if self.verbose:
+                    warnings.warn("Code was compiled with COOLING so assuming gas and stars present!")
+                self.hydro_sim = True
 
         if not load_data:
             return {}, {}
@@ -764,8 +773,13 @@ class GadgetCatalogue(GadgetBox):
                           'number_of_subhalos']
         group_keys_vec3 = ['position_of_minimum_potential', 'center_of_mass',
                            'velocity']
-        halo_keys_float = ['mass', 'halfmass_radius']
-        halo_keys_int = ['number_of_particles', 'offset', 'ID_most_bound',
+        if self.hydro_sim:
+            halo_keys_float = ['mass', 'gas_mass', 'stellar_mass', 'halfmass_radius', ]
+            halo_keys_int = ['number_of_particles', 'number_of_gas_particles', 'number_of_star_particles', 'offset', 'ID_most_bound',
+                         'group_number', 'rank_in_group']
+        else:
+            halo_keys_float = ['mass', 'halfmass_radius']
+            halo_keys_int = ['number_of_particles', 'offset', 'ID_most_bound',
                          'group_number', 'rank_in_group']
         halo_keys_vec3 = ['position_of_minimum_potential', 'center_of_mass',
                           'velocity']
@@ -797,8 +811,6 @@ class GadgetCatalogue(GadgetBox):
 
                 if ngroups == 0:
                     continue
-
-                config_options = list(halo_cat['Config'].attrs)
 
                 group['mass'][gslice] = halo_cat['Group']['GroupMassType'][()][
                     :, self.particle_type]
@@ -843,9 +855,13 @@ class GadgetCatalogue(GadgetBox):
                         'GroupFirstSub'][()]
                     group['number_of_subhalos'][gslice] = halo_cat['Group'][
                         'GroupNsubs'][()]
-
                     halo['mass'][hslice] = halo_cat[
-                        'Subhalo']['SubhaloMassType'][()][:, self.particle_type]
+                        'Subhalo']['SubhaloMass'][()] ## Total mass
+                    if self.hydro_sim:
+                        halo['gas_mass'][hslice] = halo_cat[
+                        'Subhalo']['SubhaloMassType'][()][:, 0] 
+                        halo['stellar_mass'][hslice] = halo_cat[
+                        'Subhalo']['SubhaloMassType'][()][:,4] 
                     halo['center_of_mass'][hslice] = halo_cat['Subhalo'][
                         'SubhaloCM'][()]
                     halo['position_of_minimum_potential'][hslice] = halo_cat[
@@ -855,7 +871,12 @@ class GadgetCatalogue(GadgetBox):
                     halo['halfmass_radius'][hslice] = halo_cat['Subhalo'][
                         'SubhaloHalfmassRadType'][()][:, self.particle_type]
                     halo['number_of_particles'][hslice] = halo_cat[
-                        'Subhalo']['SubhaloLenType'][()][:, self.particle_type]
+                        'Subhalo']['SubhaloLen'][()] ## total number of particles
+                    if self.hydro_sim:
+                        halo['number_of_gas_particles'][hslice] = halo_cat[
+                            'Subhalo']['SubhaloLenType'][()][:,0]
+                        halo['number_of_star_particles'][hslice] = halo_cat[
+                            'Subhalo']['SubhaloLenType'][()][:,4]
                     halo['offset'][hslice] = halo_cat[
                         'Subhalo']['SubhaloOffsetType'][()][:, self.particle_type]
                     halo['ID_most_bound'][hslice] = halo_cat['Subhalo'][
