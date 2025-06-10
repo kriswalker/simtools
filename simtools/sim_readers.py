@@ -700,7 +700,7 @@ class GadgetSnapshot(GadgetBox):
 
 class GadgetCatalogue(GadgetBox):
 
-    def __init__(self, catalogue_filename, particle_type=None,
+    def __init__(self, catalogue_filename, particle_type=None, load_hydro=False,
                  load_data=True, catalogue_format=None, unit_length_in_cm=None,
                  unit_mass_in_g=None, unit_velocity_in_cm_per_s=None,
                  verbose=True):
@@ -711,6 +711,10 @@ class GadgetCatalogue(GadgetBox):
         self.catalogue_filename = catalogue_filename
         self.particle_type = particle_type
         self.verbose = verbose
+        self.load_hydro = load_hydro
+
+        if self.load_hydro:
+            self.hydro_sim = False
 
         catalogue_files = glob.glob(catalogue_filename)
         ncat = len(catalogue_files)
@@ -751,11 +755,8 @@ class GadgetCatalogue(GadgetBox):
             self.number_of_halos = halo_cat['Header'].attrs['Nsubhalos_Total']
             
             config_options = list(halo_cat['Config'].attrs)
-            
-            self.hydro_sim = False
-            if "COOLING" in config_options:
-                if self.verbose:
-                    warnings.warn("Code was compiled with COOLING so assuming gas and stars present!")
+
+            if self.load_hydro and "COOLING" in config_options:
                 self.hydro_sim = True
 
         if not load_data:
@@ -773,7 +774,7 @@ class GadgetCatalogue(GadgetBox):
                           'number_of_subhalos']
         group_keys_vec3 = ['position_of_minimum_potential', 'center_of_mass',
                            'velocity']
-        if self.hydro_sim:
+        if self.load_hydro and self.hydro_sim:
             halo_keys_float = ['mass', 'gas_mass', 'stellar_mass', 'halfmass_radius', ]
             halo_keys_int = ['number_of_particles', 'number_of_gas_particles', 'number_of_star_particles', 'offset', 'ID_most_bound',
                          'group_number', 'rank_in_group']
@@ -857,7 +858,7 @@ class GadgetCatalogue(GadgetBox):
                         'GroupNsubs'][()]
                     halo['mass'][hslice] = halo_cat[
                         'Subhalo']['SubhaloMass'][()] ## Total mass
-                    if self.hydro_sim:
+                    if self.load_hydro and self.hydro_sim:
                         halo['gas_mass'][hslice] = halo_cat[
                         'Subhalo']['SubhaloMassType'][()][:, 0] 
                         halo['stellar_mass'][hslice] = halo_cat[
@@ -872,7 +873,7 @@ class GadgetCatalogue(GadgetBox):
                         'SubhaloHalfmassRadType'][()][:, self.particle_type]
                     halo['number_of_particles'][hslice] = halo_cat[
                         'Subhalo']['SubhaloLen'][()] ## total number of particles
-                    if self.hydro_sim:
+                    if self.load_hydro and self.hydro_sim:
                         halo['number_of_gas_particles'][hslice] = halo_cat[
                             'Subhalo']['SubhaloLenType'][()][:,0]
                         halo['number_of_star_particles'][hslice] = halo_cat[
