@@ -1177,17 +1177,18 @@ class AHFCatalogue:
                 halo[key] = np.empty(
                     (self.number_of_halos, 3), dtype=np.float32)
         halo['particle_IDs'] = []
+        npart_list = []
 
         inds = np.insert(np.cumsum(linecounts), 0, 0)
         slices = [slice(start, end) for start, end in zip(inds[:-1], inds[1:])]
         for filename, sl in zip(filenames, slices):
 
             halo['halo_ID'][sl] = np.loadtxt(
-                filename, dtype=np.uint64, skiprows=0, usecols=0)
+                filename, dtype=np.uint64, skiprows=1, usecols=0)
             halo['host_ID'][sl] = np.loadtxt(
-                filename, dtype=np.uint64, skiprows=0, usecols=1)
+                filename, dtype=np.uint64, skiprows=1, usecols=1)
 
-            data = np.atleast_2d(np.loadtxt(filename, skiprows=0))[:, 2:]
+            data = np.atleast_2d(np.loadtxt(filename, skiprows=1))[:, 2:]
             halo['number_of_subhalos'][sl] = data[:, 0].astype(np.int32)
             halo['virial_mass'][sl] = data[:, 1]
             halo['number_of_particles'][sl] = data[:, 2].astype(np.int32)
@@ -1199,20 +1200,29 @@ class AHFCatalogue:
             halo['angular_momentum'][sl] = data[:, 19:22]
 
             if load_particle_ids:
-                filename = filename.replace('halos', 'particles')
-                particle_ids = np.loadtxt(filename, dtype=np.uint64,
-                                          skiprows=1, usecols=0)
-                particle_types = np.loadtxt(filename, dtype=np.uint64,
-                                            skiprows=1, usecols=1)
-                for i, n in enumerate(range(self.number_of_halos-1), 1):
-                    npart = halo['number_of_particles'][n]
-                    start = np.sum(
-                        np.array(halo['number_of_particles'][:n+1])) - npart
 
-                    ptypes = particle_types[start+i:start+npart+i]
-                    ptype_inds = np.argwhere(
-                        ptypes == self.particle_type).flatten()
-                    pids = (particle_ids[start+i:start+npart+i])[ptype_inds]
-                    halo['particle_IDs'].append(pids)
+                filename = filename.replace('halos', 'particles')
+                particle_ids, particle_types = np.loadtxt(
+                    filename, dtype=np.uint64, skiprows=1, usecols=(0, 1)).T
+
+                offsets = [0] + list(np.cumsum(halo['number_of_particles']))
+                header_inds = np.array(offsets[:-1]) + np.arange(
+                    self.number_of_halos)
+                header_mask = np.ones(len(particle_ids), dtype=bool)
+                header_mask[header_inds] = False
+                particle_ids = particle_ids[header_mask]
+                particle_types = particle_types[header_mask]
+
+                mask = (particle_types == self.particle_type)
+                pslices = list(zip(offsets[:-1], offsets[1:]))
+                nparts = np.array(
+                    [np.sum(mask[slice(*psl)]) for psl in pslices])
+                halo['particle_IDs'].append(particle_ids[mask])
+                npart_list.append(nparts)
+
+        if load_particle_ids:
+            halo['particle_IDs'] = np.concatenate(halo['particle_IDs'])
+            halo['particle_offsets'] = np.array(
+                [0]+list(np.cumsum(np.concatenate(npart_list)))[:-1])
 
         return halo
