@@ -714,7 +714,7 @@ class GadgetCatalogue(GadgetBox):
         self.load_hydro = load_hydro
 
         if self.load_hydro:
-            self.hydro_sim = False
+            self.hydro_sim = True
 
         catalogue_files = glob.glob(catalogue_filename)
         ncat = len(catalogue_files)
